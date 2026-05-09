@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ScreenRecorder.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ScreenRecorder.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

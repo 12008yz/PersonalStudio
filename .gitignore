@@ -1,0 +1,30 @@
+# Build
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio / VS Code
+.vs/
+*.user
+*.userosscache
+*.suo
+*.rsuser
+
+# Rider
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# MSIX / packaging output
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
+# Certificates (signing)
+*.pfx
