@@ -38,9 +38,8 @@ BundleArtifacts/
 *.appxbundle
 *.appxupload
 
-# Publish output
+# Publish output (сами профили в Properties/PublishProfiles коммитим)
 publish/
-*.pubxml
 PublishScripts/
 
 # Code analysis and tooling
