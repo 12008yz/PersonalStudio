@@ -15,9 +15,10 @@
   <mp:PhoneIdentity PhoneProductId="6A77B529-015D-429E-8A81-C4618C69A0EB" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>ScreenRecorder.App</DisplayName>
+    <DisplayName>ms-resource:///Resources/AppDisplayName</DisplayName>
     <PublisherDisplayName>AppPublisher</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
+    <Description>ms-resource:///Resources/AppDescription</Description>
   </Properties>
 
   <Dependencies>
@@ -26,7 +27,8 @@
   </Dependencies>
 
   <Resources>
-    <Resource Language="x-generate"/>
+    <Resource Language="en-US" />
+    <Resource Language="ru-RU" />
   </Resources>
 
   <Applications>
@@ -34,8 +36,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="ScreenRecorder.App"
-        Description="ScreenRecorder.App"
+        DisplayName="ms-resource:///Resources/AppDisplayName"
+        Description="ms-resource:///Resources/AppDescription"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.scale-200.png"
         Square44x44Logo="Assets\Square44x44Logo.scale-200.png">

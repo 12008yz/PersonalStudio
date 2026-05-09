@@ -15,6 +15,21 @@
 
 Единая точка в коде: `ScreenRecorder.RecordingEngine.RecordingOutputFormat`.
 
+## Источники записи (зафиксировано для MVP)
+
+- **Видео:** один **выбранный монитор целиком** (`Windows.Graphics.Capture`). Произвольная область экрана — запланировано **после MVP**.
+- **Системный звук:** WASAPI **loopback**.
+- **Микрофон:** WASAPI **capture** (устройство по умолчанию или выбор в настройках).
+
+В коде: `ScreenRecorder.RecordingEngine.RecordingSourcesSpec`.
+
+## Локализация UI
+
+- **Языки:** **English (en-US)** по умолчанию в проекте и **Russian (ru-RU)**.
+- **Файлы:** `src/ScreenRecorder.App/Strings/<lang>/Resources.resw` (MRT / PRI).
+- **Использование:** `x:Uid` в XAML, `ResourceLoader` в коде для `Window.Title`, `ms-resource:///Resources/...` в `Package.appxmanifest` для отображаемого имени приложения. Фактический язык — по настройкам Windows для приложения.
+- **Важно:** новые ключи добавляйте **сразу в оба** `.resw` (`en-US` и `ru-RU`), иначе возможен английский fallback или пустые подписи.
+
 ## Поддерживаемые платформы
 
 - **ОС:** Windows 10 **22H2 и новее** (сборка **19045+**), Windows 11.
