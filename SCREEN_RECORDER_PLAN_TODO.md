@@ -1,5 +1,7 @@
 # План: запись экрана + системный звук + микрофон (без FFmpeg)
 
+проверь всё за собой ещё раз. Что бы не было ошибок или несостыковок в логике
+
 Чеклист по фазам, лучшие практики и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
 
 ---
@@ -54,20 +56,20 @@
 
 ## 1. Стек (зафиксировать на старте)
 
-- [ ] .NET: одна LTS-ветка на весь проект (не прыгать между major без причины).
-- [ ] UI: WinUI 3 + Windows App SDK (stable).
+- [x] .NET: одна LTS-ветка на весь проект (не прыгать между major без причины). _(основной стек: **.NET 8** — App, RecordingEngine, спайки.)_
+- [x] UI: WinUI 3 + Windows App SDK (stable).
 - [ ] Захват экрана: Windows.Graphics.Capture (основной путь); DXGI Duplication — только при блокерах.
 - [ ] Кодирование/контейнер: Media Foundation (`IMFSinkWriter`, H.264 MFT, AAC MFT).
 - [ ] Аудио: WASAPI (+ удобный слой, напр. NAudio); единая номинальная частота (предпочтительно 48 kHz).
-- [ ] Логи: `Microsoft.Extensions.Logging` (debug подробно, release без PII).
-- [ ] Конфиг: `%LocalAppData%\<AppId>\settings.json` + валидация.
+- [x] Логи: `Microsoft.Extensions.Logging` (debug подробно, release без PII). _(подключено в App; политика release — донастроить в фазе F.)_
+- [x] Конфиг: `%LocalAppData%\<AppId>\settings.json` + валидация. _(см. `ApplicationIdentity` + `JsonAppSettingsStore` в RecordingEngine.)_
 - [ ] Ядро записи: отдельный модуль/сервис с жизненным циклом и `CancellationToken` (не глобальные «магические» синглтоны на всё).
 
 ---
 
 ## 2. Архитектура
 
-- [ ] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке.
+- [x] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке. _(каркас; тяжёлых циклов нет.)_
 - [ ] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
 - [ ] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени.
 - [ ] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке).
@@ -80,12 +82,12 @@
 
 ## Фаза A — каркас (неделя 1)
 
-- [ ] Решение: UI-проект + Class Library `RecordingEngine` (без зависимостей от UI).
-- [ ] Пакеты: Windows App SDK, CsWinRT (нужные WinRT API), NAudio (или свой тонкий слой).
-- [ ] Версионирование: `AssemblyInformationalVersion`, единый AppId.
-- [ ] `EditorConfig`, nullable, warnings-as-errors для `RecordingEngine` (минимум).
-- [ ] DI (`Microsoft.Extensions.DependencyInjection`): сессия, логгер, настройки.
-- [ ] **Готово:** пустое окно, лог, чтение/запись настроек.
+- [x] Решение: UI-проект + Class Library `RecordingEngine` (без зависимостей от UI).
+- [ ] Пакеты: Windows App SDK, CsWinRT (нужные WinRT API), NAudio (или свой тонкий слой). _(WASDK в App; NAudio — позже, фаза C.)_
+- [x] Версионирование: `AssemblyInformationalVersion`, единый AppId. _(версия через корневой `Directory.Build.props`; папка настроек — `ApplicationIdentity.LocalAppDataFolderName`.)_
+- [x] `EditorConfig`, nullable, warnings-as-errors для `RecordingEngine` (минимум).
+- [x] DI (`Microsoft.Extensions.DependencyInjection`): сессия, логгер, настройки. _(DI + лог + `IAppSettingsStore`; сессия записи — фаза E.)_
+- [x] **Готово:** пустое окно, лог, чтение/запись настроек.
 
 ---
 

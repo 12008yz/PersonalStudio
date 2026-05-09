@@ -27,4 +27,7 @@
   <data name="MainPage_RecordButton.Content" xml:space="preserve">
     <value>Начать запись</value>
   </data>
+  <data name="MainPage_ActivityLogHeader.Text" xml:space="preserve">
+    <value>Журнал</value>
+  </data>
 </root>
