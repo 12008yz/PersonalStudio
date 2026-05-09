@@ -72,4 +72,6 @@ dotnet build ScreenRecorder.slnx -c Release
 
 - `src/ScreenRecorder.App` — WinUI 3, только UI и сценарии.
 - `src/ScreenRecorder.RecordingEngine` — ядро записи без зависимостей от UI.
-- `src/ScreenRecorder.MfSpike` — вертикальный спайк: синтетический MP4 без FFmpeg (см. [src/ScreenRecorder.MfSpike/README.md](src/ScreenRecorder.MfSpike/README.md)).
+- `src/ScreenRecorder.MfSpike` — спайк A: синтетическое видео → MP4 без FFmpeg (см. [src/ScreenRecorder.MfSpike/README.md](src/ScreenRecorder.MfSpike/README.md)).
+- `src/ScreenRecorder.VariantBSpike` — спайк B: GDI **5 с** + синус в **WAV** → один MP4 (аудио на выходе обычно **AAC**; см. [src/ScreenRecorder.VariantBSpike/README.md](src/ScreenRecorder.VariantBSpike/README.md)).
+- `docs/HARDWARE_CODEC_MATRIX.md` — шаблон таблицы для ручной фиксации кодеков на разных GPU.

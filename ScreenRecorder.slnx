@@ -3,5 +3,6 @@
     <Project Path="src/ScreenRecorder.App/ScreenRecorder.App.csproj" />
     <Project Path="src/ScreenRecorder.MfSpike/ScreenRecorder.MfSpike.csproj" />
     <Project Path="src/ScreenRecorder.RecordingEngine/ScreenRecorder.RecordingEngine.csproj" />
+    <Project Path="src/ScreenRecorder.VariantBSpike/ScreenRecorder.VariantBSpike.csproj" />
   </Folder>
 </Solution>

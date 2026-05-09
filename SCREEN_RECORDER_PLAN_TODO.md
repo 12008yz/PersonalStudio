@@ -8,7 +8,7 @@
 
 **Цель (зафиксировано 2026-05-10):** десктопное приложение для Windows — по опыту проще типичного «тяжёлого» рекордера в духе Bandicam, но без упрощения до «игрушки»: приоритет — **стабильный выходной MP4** и **понятные пользователю ошибки** (права, устройства, кодеки, DRM), а не максимум настроек на первом экране.
 
-**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingNfrSpec`, спайк MF — `src/ScreenRecorder.MfSpike`; каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
+**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingNfrSpec`, спайки MF — [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) и [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md), шаблон матрицы железа — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md); каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
 
 - [x] Зафиксировать цель: десктоп «проще Bandicam», но полноценный (стабильный MP4, понятные ошибки).
 - [x] ОС: Windows 10 22H2+ и Windows 11 (x64).
@@ -38,12 +38,17 @@
 
 **Цель:** доказать, что на целевых ПК цепочка **MP4 + H.264 (+ при необходимости AAC)** через стек ОС работает (прямой **`IMFSinkWriter`** или эквивалентный путь WinRT поверх **Media Foundation**).
 
-- [x] Вариант A: синтетическое видео → валидный MP4 на целевой ОС (**AAC-LC** явно — вариант B или `IMFSinkWriter`, фаза D).
+- [x] Вариант A: синтетическое видео → валидный MP4 на целевой ОС (отдельная аудиодорожка в этом спайке **не** задаётся).
 
-**Вариант A (сделано):** консольный проект [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) — **2 с** сплошного цвета → **MP4** (`HD1080p`) через `Windows.Media.Editing.MediaComposition` (под капотом **MF** и системные кодеки). **Явного** PCM→AAC или синуса в коде нет: это проверка **видеопути и контейнера**; наличие/тип аудиодорожки смотрите в свойствах файла (часто тишина или отсутствие дорожки — зависит от профиля). Полная проверка **AAC** — вариант B или фаза D на **`IMFSinkWriter`**. Отдельный **`IMFSinkWriter`** в движке — в фазе D.
+**Вариант A (сделано):** консольный проект [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) — **2 с** сплошного цвета → **MP4** (`HD1080p`) через `Windows.Media.Editing.MediaComposition` (под капотом **MF** и системные кодеки). Это проверка **видеопути и контейнера**; аудио может отсутствовать. Отдельная управляемая звуковая дорожка — **вариант B**; явный **AAC-LC** и таймстемпы под движок — **`IMFSinkWriter`**, фаза D.
 
-- [ ] Вариант B: реальный захват 5 с + синтетический AAC-LC → валидный MP4.
+- [x] Вариант B: реальный захват 5 с + синтетическое аудио → валидный MP4 (на выходе аудио обычно **AAC**, в т.ч. **AAC-LC** — проверить mediainfo).
+
+**Вариант B (сделано):** [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md) — **GDI** `CopyFromScreen` (реальные пиксели основного монитора) **5 с**, **25** кадров по **200 ms** → цепочка image-clips; в коде аудио — **PCM WAV** (синус **48 kHz**) → `BackgroundAudioTrack`; при **RenderToFileAsync** ОС обычно кодирует звук в **AAC** (профиль **LC** не фиксируется API в явном виде). Это не `Windows.Graphics.Capture`, но закрывает спайк «экран + звук в одном файле».
+
 - [ ] Зафиксировать HRESULT/отсутствие кодеков на тестовых машинах (Intel / NVIDIA / AMD).
+
+**Шаблон для заполнения:** [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) (данные по ПК вносить вручную после прогона `MfSpike` и `VariantBSpike`).
 
 ---
 
