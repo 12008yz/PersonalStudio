@@ -55,7 +55,7 @@ public partial class App : Application
         });
         services.AddSingleton<IAppSettingsStore>(sp =>
             new JsonAppSettingsStore(
-                ApplicationIdentity.DefaultSettingsFilePath,
+                ScreenRecorder.RecordingEngine.ApplicationIdentity.DefaultSettingsFilePath,
                 sp.GetService<ILogger<JsonAppSettingsStore>>()));
 
         Services = services.BuildServiceProvider();

@@ -20,4 +20,20 @@ public sealed class FrameCaptureMetricsTests
         Assert.AreEqual(2, m.EmptyFrames);
         Assert.AreEqual(30.0, m.AverageFps, 1e-6);
     }
+
+    [TestMethod]
+    public void Constructor_DefaultLatencyFields_AreNaN()
+    {
+        var m = new FrameCaptureMetrics(1, 0, TimeSpan.FromSeconds(1), 0, TimeSpan.Zero);
+        Assert.IsTrue(double.IsNaN(m.AverageFrameHandlerLatencyMilliseconds));
+        Assert.IsTrue(double.IsNaN(m.LastFrameHandlerLatencyMilliseconds));
+    }
+
+    [TestMethod]
+    public void Constructor_WithLatency_PreservesPassedValues()
+    {
+        var m = new FrameCaptureMetrics(2, 0, TimeSpan.FromSeconds(1), 0, TimeSpan.Zero, 4.25, 10);
+        Assert.AreEqual(4.25, m.AverageFrameHandlerLatencyMilliseconds, 1e-9);
+        Assert.AreEqual(10, m.LastFrameHandlerLatencyMilliseconds, 1e-9);
+    }
 }

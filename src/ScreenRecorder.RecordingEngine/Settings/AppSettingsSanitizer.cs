@@ -28,6 +28,23 @@ internal static class AppSettingsSanitizer
         {
             SchemaVersion = version,
             LastOutputDirectory = dir,
+            PreferredMicrophoneEndpointId = SanitizeEndpointId(input.PreferredMicrophoneEndpointId),
+            PreferredLoopbackRenderEndpointId = SanitizeEndpointId(input.PreferredLoopbackRenderEndpointId),
         };
+    }
+
+    private static string? SanitizeEndpointId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return null;
+
+        id = id.Trim();
+        if (id.Length > 2048)
+            return null;
+
+        if (id.AsSpan().ContainsAny('\0', '\r', '\n'))
+            return null;
+
+        return id;
     }
 }

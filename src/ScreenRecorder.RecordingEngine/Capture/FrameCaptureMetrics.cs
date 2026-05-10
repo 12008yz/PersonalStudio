@@ -8,7 +8,9 @@ public readonly struct FrameCaptureMetrics
         long emptyFrames,
         TimeSpan elapsed,
         long lastFrameQpcTicks,
-        TimeSpan lastFrameSystemRelativeTime)
+        TimeSpan lastFrameSystemRelativeTime,
+        double averageFrameHandlerLatencyMs = double.NaN,
+        double lastFrameHandlerLatencyMs = double.NaN)
     {
         FramesReceived = framesReceived;
         EmptyFrames = emptyFrames;
@@ -16,6 +18,8 @@ public readonly struct FrameCaptureMetrics
         LastFrameQpcTicks = lastFrameQpcTicks;
         LastFrameSystemRelativeTime = lastFrameSystemRelativeTime;
         AverageFps = elapsed.TotalSeconds > 0.01 ? framesReceived / elapsed.TotalSeconds : 0;
+        AverageFrameHandlerLatencyMilliseconds = averageFrameHandlerLatencyMs;
+        LastFrameHandlerLatencyMilliseconds = lastFrameHandlerLatencyMs;
     }
 
     public long FramesReceived { get; }
@@ -30,4 +34,13 @@ public readonly struct FrameCaptureMetrics
     public long LastFrameQpcTicks { get; }
 
     public TimeSpan LastFrameSystemRelativeTime { get; }
+
+    /// <summary>
+    /// Средняя задержка: «стенные» часы QPC после базовой отметки захвата минус <see cref="Windows.Graphics.DirectX.Direct3D11.Direct3D11CaptureFrame.SystemRelativeTime"/>,
+    /// в миллисекундах (см. сеанс захвата); кадр на котором выполнялся <c>Recreate</c> пула в среднее не включается. <see cref="double.NaN"/>, если выборок не было.
+    /// </summary>
+    public double AverageFrameHandlerLatencyMilliseconds { get; }
+
+    /// <summary>Задержка последнего кадра, вошедшего в выборку латентности, мс; <see cref="double.NaN"/>, если таких кадров не было.</summary>
+    public double LastFrameHandlerLatencyMilliseconds { get; }
 }

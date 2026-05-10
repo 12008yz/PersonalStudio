@@ -2,7 +2,8 @@
 
 проверь всё за собой ещё раз. Что бы не было ошибок или несостыковок в логике
 
-Чеклист по фазам, лучшие практики и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
+Чеклист по фазам, лучшие практики 
+и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
 
 ---
 
@@ -74,7 +75,7 @@
 - [x] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени. _(в `MonitorFrameCaptureSession`: QPC + `SystemRelativeTime`; без очереди под энкодер — фаза D.)_
 - [ ] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке).
 - [ ] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure).
-- [ ] Device layer — мониторы, аудиоустройства, «устройство отключили».
+- [ ] Device layer — мониторы, аудиоустройства, «устройство отключили». _(мониторы + перечисление аудио; реакции на отключение — позже.)_
 - [ ] **COM/потоки:** явно описать, какие потоки MTA/STA, где `CoInitializeEx`, где живёт SinkWriter; не вызывать MF с UI-потока.
 - [ ] **Дрейф A/V:** политика на длинных записях (30–120+ мин) — resample аудио / редкий drop-дубликат видео / пересчёт таймстемпов.
 
@@ -83,7 +84,7 @@
 ## Фаза A — каркас (неделя 1)
 
 - [x] Решение: UI-проект + Class Library `RecordingEngine` (без зависимостей от UI).
-- [ ] Пакеты: Windows App SDK, CsWinRT (нужные WinRT API), NAudio (или свой тонкий слой). _(WASDK в App; NAudio — позже, фаза C.)_
+- [x] Пакеты: Windows App SDK, CsWinRT (нужные WinRT API), NAudio (или свой тонкий слой). _(NAudio в `RecordingEngine`; WASDK/CsWinRT в App/SDK.)_
 - [x] Версионирование: `AssemblyInformationalVersion`, единый AppId. _(версия через корневой `Directory.Build.props`; папка настроек — `ApplicationIdentity.LocalAppDataFolderName`.)_
 - [x] `EditorConfig`, nullable, warnings-as-errors для `RecordingEngine` (минимум).
 - [x] DI (`Microsoft.Extensions.DependencyInjection`): сессия, логгер, настройки. _(DI + лог + `IAppSettingsStore`; сессия записи — фаза E.)_
@@ -97,7 +98,7 @@
 - [x] Перечисление дисплеев + связка с `GraphicsCaptureItem`.
 - [x] `GraphicsCaptureSession` + Direct3D11 interop: стабильный поток кадров + timestamp.
 - [x] Debug: FPS и учёт «пустых» кадров (`FrameCaptureMetrics`).
-- [ ] Debug: средняя задержка кадра (от системной метки до обработчика) — не измеряем.
+- [x] Debug: средняя задержка кадра относительно `Direct3D11CaptureFrame.SystemRelativeTime` после `TryGetNextFrame` — среднее и последнее в миллисекундах (`FrameCaptureMetrics`, журнал после теста захвата); кадр успешного `Recreate` в выборку латентности не входит, базовая QPC-метка сбрасывается.
 - [ ] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(частично: `Recreate` пула при смене `ContentSize` в `MonitorFrameCaptureSession`; сообщения пользователю — позже.)_
 - [ ] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `app.manifest`; ручные прогоны — в чеклисте.)_
 - [ ] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач).
@@ -107,7 +108,7 @@
 
 ## Фаза C — аудио (неделя 2–3)
 
-- [ ] Перечисление устройств (`MMDeviceEnumerator`); UI выбора default/конкретного.
+- [x] Перечисление устройств (`MMDeviceEnumerator` через NAudio Core Audio); UI выбора default/конкретного _(ComboBox на `MainPage`, сохранение в `AppSettings` / JSON). Реальный WASAPI захват по выбранным id — следующие пункты._
 - [ ] Микрофон: WASAPI shared → PCM; формат (частота, каналы).
 - [ ] Системный звук: WASAPI loopback.
 - [ ] Ресэмплинг к 48 kHz (или одна выбранная частота на весь проект).

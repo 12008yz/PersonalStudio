@@ -30,6 +30,18 @@
   <data name="MainPage_ActivityLogHeader.Text" xml:space="preserve">
     <value>Журнал</value>
   </data>
+  <data name="MainPage_AudioSection.Text" xml:space="preserve">
+    <value>Аудиоустройства</value>
+  </data>
+  <data name="MainPage_MicrophoneLabel.Text" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="MainPage_LoopbackLabel.Text" xml:space="preserve">
+    <value>Системный звук (устройство воспроизведения для записи)</value>
+  </data>
+  <data name="AudioPicker_SystemDefault" xml:space="preserve">
+    <value>По умолчанию системы</value>
+  </data>
   <data name="MainPage_CaptureTestButton.Content" xml:space="preserve">
     <value>Проверить захват экрана (10 с)</value>
   </data>
@@ -40,7 +52,13 @@
     <value>Тест захвата на {0}, 10 секунд…</value>
   </data>
   <data name="CaptureTest_Result" xml:space="preserve">
-    <value>Тест захвата завершён: кадров {0}, ~{1:F1} к/с, пустых кадров: {2}, длительность: {3:F1} с.</value>
+    <value>Тест захвата завершён: кадров {0}, ~{1:F1} к/с, пустых кадров: {2}, длительность: {3:F1} с. Средняя задержка: {4}; последняя: {5}.</value>
+  </data>
+  <data name="CaptureTest_LatencyMilliseconds" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="CaptureTest_LatencyNA" xml:space="preserve">
+    <value>н/д</value>
   </data>
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Ошибка теста захвата: {0}</value>

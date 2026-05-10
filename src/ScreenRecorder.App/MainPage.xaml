@@ -35,6 +35,27 @@
                 Click="CaptureTestButton_Click" />
 
             <TextBlock
+                x:Uid="MainPage_AudioSection"
+                Margin="0,8,0,0"
+                Style="{StaticResource SubtitleTextBlockStyle}" />
+            <TextBlock x:Uid="MainPage_MicrophoneLabel" />
+            <ComboBox
+                x:Name="MicrophoneCombo"
+                MinWidth="360"
+                MaxWidth="640"
+                HorizontalAlignment="Stretch"
+                DisplayMemberPath="DisplayLabel"
+                SelectionChanged="AudioDeviceCombo_SelectionChanged" />
+            <TextBlock x:Uid="MainPage_LoopbackLabel" />
+            <ComboBox
+                x:Name="LoopbackCombo"
+                MinWidth="360"
+                MaxWidth="640"
+                HorizontalAlignment="Stretch"
+                DisplayMemberPath="DisplayLabel"
+                SelectionChanged="AudioDeviceCombo_SelectionChanged" />
+
+            <TextBlock
                 x:Uid="MainPage_ActivityLogHeader"
                 Margin="0,16,0,0"
                 Style="{StaticResource SubtitleTextBlockStyle}" />

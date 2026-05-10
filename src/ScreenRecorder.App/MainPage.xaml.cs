@@ -6,23 +6,34 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.ApplicationModel.Resources;
 using ScreenRecorder.RecordingEngine;
+using ScreenRecorder.RecordingEngine.Audio;
 using ScreenRecorder.RecordingEngine.Capture;
 using ScreenRecorder.RecordingEngine.Settings;
 
 // To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+// and more about your project templates, see: http://aka.ms/winui-project-info.
 
 namespace ScreenRecorder_App;
 
 /// <summary>
-/// The main content page displayed inside the application window.
-/// Add your UI logic, event handlers, and data binding here.
+/// The main content area of the application window.
 /// </summary>
 public sealed partial class MainPage : Page
 {
+    private IAppSettingsStore? _settingsStore;
+    private AppSettings? _currentSettings;
+    private bool _audioPickersBusy;
+
     public MainPage()
     {
         InitializeComponent();
+    }
+
+    private sealed class AudioPickerRow
+    {
+        public string? EndpointId { get; init; }
+
+        public string DisplayLabel { get; init; } = "";
     }
 
     private async void MainPage_Loaded(object sender, RoutedEventArgs e)
@@ -30,8 +41,10 @@ public sealed partial class MainPage : Page
         var activityLog = App.Services.GetRequiredService<ActivityLog>();
         var store = App.Services.GetRequiredService<IAppSettingsStore>();
         var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
+        var loader = new ResourceLoader();
 
         ActivityLogItems.ItemsSource = activityLog.Entries;
+        _settingsStore = store;
 
         void AppendUi(string line)
         {
@@ -40,8 +53,41 @@ public sealed partial class MainPage : Page
 
         try
         {
-            var settings = await store.LoadOrCreateAsync();
-            var path = ApplicationIdentity.DefaultSettingsFilePath;
+            var settings = await store.LoadOrCreateAsync().ConfigureAwait(true);
+
+            try
+            {
+                var micRows = BuildAudioRows(AudioDeviceEnumeration.EnumerateCaptureEndpoints(), loader);
+                var renderRows = BuildAudioRows(AudioDeviceEnumeration.EnumerateRenderEndpoints(), loader);
+
+                var micPref = NormalizeEndpointPreferenceAgainstRows(micRows, settings.PreferredMicrophoneEndpointId);
+                var loopPref = NormalizeEndpointPreferenceAgainstRows(renderRows, settings.PreferredLoopbackRenderEndpointId);
+                var reconciled = settings with
+                {
+                    PreferredMicrophoneEndpointId = micPref,
+                    PreferredLoopbackRenderEndpointId = loopPref,
+                };
+
+                ApplyComboRows(MicrophoneCombo, micRows, micPref);
+                ApplyComboRows(LoopbackCombo, renderRows, loopPref);
+
+                _currentSettings = reconciled;
+
+                if (reconciled != settings)
+                {
+                    await store.SaveAsync(reconciled).ConfigureAwait(true);
+                    logger.LogInformation("Pruned stale or unknown audio endpoint id(s) in settings.");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Audio device enumeration failed");
+                _currentSettings = settings;
+            }
+
+            _currentSettings ??= settings;
+
+            var path = ScreenRecorder.RecordingEngine.ApplicationIdentity.DefaultSettingsFilePath;
             logger.LogInformation("Settings ready at {Path}", path);
 
             AppendUi($"[{DateTime.Now:HH:mm:ss}] {path}");
@@ -52,6 +98,106 @@ public sealed partial class MainPage : Page
         {
             logger.LogError(ex, "Settings load failed");
             AppendUi($"[{DateTime.Now:HH:mm:ss}] {ex.Message}");
+        }
+    }
+
+    private static List<AudioPickerRow> BuildAudioRows(
+        IReadOnlyList<AudioEndpointDescriptor> endpoints,
+        ResourceLoader loader)
+    {
+        var defaultLabel = loader.GetString("AudioPicker_SystemDefault") ?? "System default";
+        var rows = new List<AudioPickerRow>(1 + endpoints.Count)
+        {
+            new() { EndpointId = null, DisplayLabel = defaultLabel },
+        };
+
+        foreach (var d in endpoints)
+        {
+            rows.Add(new AudioPickerRow
+            {
+                EndpointId = d.DeviceId,
+                DisplayLabel = d.DisplayName,
+            });
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Если сохранённый id больше не встречается среди активных устройств, возвращает null (как у строки «По умолчанию»),
+    /// чтобы JSON и выбранная строка ComboBox не расходились.
+    /// </summary>
+    private static string? NormalizeEndpointPreferenceAgainstRows(IReadOnlyList<AudioPickerRow> rows, string? preferredId)
+    {
+        if (string.IsNullOrWhiteSpace(preferredId))
+            return null;
+
+        foreach (var r in rows)
+        {
+            if (r.EndpointId is not null &&
+                string.Equals(r.EndpointId, preferredId, StringComparison.OrdinalIgnoreCase))
+                return r.EndpointId;
+        }
+
+        return null;
+    }
+
+    private void ApplyComboRows(ComboBox combo, IReadOnlyList<AudioPickerRow> rows, string? preferredEndpointId)
+    {
+        if (rows.Count == 0)
+            return;
+
+        _audioPickersBusy = true;
+        try
+        {
+            combo.ItemsSource = rows;
+
+            var selected = preferredEndpointId is null
+                ? rows[0]
+                : rows.FirstOrDefault(r =>
+                      r.EndpointId != null &&
+                      string.Equals(r.EndpointId, preferredEndpointId, StringComparison.OrdinalIgnoreCase))
+                  ?? rows[0];
+
+            combo.SelectedItem = selected;
+        }
+        finally
+        {
+            _audioPickersBusy = false;
+        }
+    }
+
+    private async void AudioDeviceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_audioPickersBusy || _settingsStore is null || _currentSettings is null)
+            return;
+
+        if (sender is not ComboBox cb)
+            return;
+
+        if (cb.SelectedItem is not AudioPickerRow row)
+            return;
+
+        var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
+
+        try
+        {
+            if (ReferenceEquals(cb, MicrophoneCombo))
+            {
+                var next = _currentSettings with { PreferredMicrophoneEndpointId = row.EndpointId };
+                await _settingsStore.SaveAsync(next).ConfigureAwait(true);
+                _currentSettings = next;
+            }
+            else if (ReferenceEquals(cb, LoopbackCombo))
+            {
+                var next = _currentSettings with { PreferredLoopbackRenderEndpointId = row.EndpointId };
+                await _settingsStore.SaveAsync(next).ConfigureAwait(true);
+                _currentSettings = next;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Saving audio device preference failed");
         }
     }
 
@@ -84,18 +230,32 @@ public sealed partial class MainPage : Page
                 App.Services.GetService<ILogger<MonitorFrameCaptureSession>>());
             session.Start(target.MonitorHandle);
 
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
 
             session.Stop();
             var m = session.GetMetrics();
             var resultFmt = loader.GetString("CaptureTest_Result") ?? string.Empty;
+            var latencyMsFmt = loader.GetString("CaptureTest_LatencyMilliseconds") ?? "{0} ms";
+            var latencyNa = loader.GetString("CaptureTest_LatencyNA") ?? string.Empty;
+
+            static string FormatLatencyMs(IFormatProvider culture, string msTemplate, string na, double millis)
+            {
+                if (double.IsNaN(millis))
+                    return na;
+
+                var n = millis.ToString("F1", culture);
+                return string.Format(culture, msTemplate, n);
+            }
+
             AppendUiLine(string.Format(
                 CultureInfo.CurrentCulture,
                 resultFmt,
                 m.FramesReceived,
                 m.AverageFps,
                 m.EmptyFrames,
-                m.Elapsed.TotalSeconds));
+                m.Elapsed.TotalSeconds,
+                FormatLatencyMs(CultureInfo.CurrentCulture, latencyMsFmt, latencyNa, m.AverageFrameHandlerLatencyMilliseconds),
+                FormatLatencyMs(CultureInfo.CurrentCulture, latencyMsFmt, latencyNa, m.LastFrameHandlerLatencyMilliseconds)));
         }
         catch (Exception ex)
         {

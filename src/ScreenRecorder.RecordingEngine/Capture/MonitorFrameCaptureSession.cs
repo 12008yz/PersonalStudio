@@ -29,6 +29,18 @@ public sealed class MonitorFrameCaptureSession : IDisposable
     private TimeSpan _lastSystemRelative;
     private SizeInt32 _poolSize;
 
+    /// <summary>
+    /// Базовая отметка QPC для сопоставления с <see cref="Direct3D11CaptureFrame.SystemRelativeTime"/>.
+    /// Задаётся перед <see cref="GraphicsCaptureSession.StartCapture"/> и сбрасывается после успешного <c>Recreate</c> пула (иначе метка времени кадра и «стенные» часы расходятся).
+    /// </summary>
+    private long _captureOriginTimestampTicks;
+
+    private double _latencySumMilliseconds;
+    private long _latencySampleCount;
+
+    /// <remarks>Не Interlocked-под сумму: допущение один поток колбэка пула для FrameArrived.</remarks>
+    private double _lastHandlerLatencyMilliseconds;
+
     public MonitorFrameCaptureSession(ILogger<MonitorFrameCaptureSession>? logger = null)
     {
         _logger = logger;
@@ -64,8 +76,12 @@ public sealed class MonitorFrameCaptureSession : IDisposable
 
                 _frames = 0;
                 _emptyFrames = 0;
+                _latencySumMilliseconds = 0;
+                _latencySampleCount = 0;
+                _lastHandlerLatencyMilliseconds = double.NaN;
                 _stopwatch.Restart();
                 Volatile.Write(ref _active, 1);
+                _captureOriginTimestampTicks = Stopwatch.GetTimestamp();
                 _session.StartCapture();
             }
             catch
@@ -88,12 +104,17 @@ public sealed class MonitorFrameCaptureSession : IDisposable
 
     public FrameCaptureMetrics GetMetrics()
     {
+        var n = _latencySampleCount;
+        var avgLatencyMs = n > 0 ? _latencySumMilliseconds / n : double.NaN;
+
         return new FrameCaptureMetrics(
             Interlocked.Read(ref _frames),
             Interlocked.Read(ref _emptyFrames),
             _stopwatch.IsRunning ? _stopwatch.Elapsed : TimeSpan.Zero,
             Volatile.Read(ref _lastQpc),
-            _lastSystemRelative);
+            _lastSystemRelative,
+            avgLatencyMs,
+            _lastHandlerLatencyMilliseconds);
     }
 
     public void Dispose()
@@ -130,7 +151,6 @@ public sealed class MonitorFrameCaptureSession : IDisposable
 
         try
         {
-            var qpc = Stopwatch.GetTimestamp();
             using var frame = sender.TryGetNextFrame();
             if (frame is null)
             {
@@ -139,6 +159,7 @@ public sealed class MonitorFrameCaptureSession : IDisposable
             }
 
             var contentSize = frame.ContentSize;
+            var skipLatencySample = false;
             if (contentSize.Width != _poolSize.Width || contentSize.Height != _poolSize.Height)
             {
                 var g = _graphics;
@@ -153,6 +174,8 @@ public sealed class MonitorFrameCaptureSession : IDisposable
                         2,
                         contentSize);
                     _poolSize = contentSize;
+                    _captureOriginTimestampTicks = Stopwatch.GetTimestamp();
+                    skipLatencySample = true;
                     _logger?.LogInformation("Direct3D11CaptureFramePool recreated at {Width}x{Height}", contentSize.Width, contentSize.Height);
                 }
                 catch (Exception ex)
@@ -161,9 +184,30 @@ public sealed class MonitorFrameCaptureSession : IDisposable
                 }
             }
 
+            var handlerTimestamp = Stopwatch.GetTimestamp();
+            var wallSinceCaptureStart = Stopwatch.GetElapsedTime(_captureOriginTimestampTicks, handlerTimestamp);
+            var latency = wallSinceCaptureStart - frame.SystemRelativeTime;
+            if (latency < TimeSpan.Zero)
+            {
+                if (latency < TimeSpan.FromMilliseconds(-500))
+                    _logger?.LogDebug(
+                        "Frame handler latency negative ({LatencyMs} ms); possible clock/origin mismatch; clamped to zero for averages.",
+                        latency.TotalMilliseconds);
+
+                latency = TimeSpan.Zero;
+            }
+
             Interlocked.Increment(ref _frames);
-            Volatile.Write(ref _lastQpc, qpc);
+            Volatile.Write(ref _lastQpc, handlerTimestamp);
             _lastSystemRelative = frame.SystemRelativeTime;
+
+            var latencyMs = latency.TotalMilliseconds;
+            if (!skipLatencySample)
+            {
+                _latencySumMilliseconds += latencyMs;
+                _latencySampleCount++;
+                _lastHandlerLatencyMilliseconds = latencyMs;
+            }
 
             // Фаза B: не читаем surface; только метрики и своевременный release кадра.
         }
