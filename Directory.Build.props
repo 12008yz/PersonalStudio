@@ -2,5 +2,9 @@
   <PropertyGroup>
     <Version>0.1.0</Version>
     <AssemblyInformationalVersion>$(Version)</AssemblyInformationalVersion>
+    <!-- Единая версия WinRT-проекций для всех net*-windows проектов (RecordingEngine, тесты, спайки). -->
+    <WindowsSdkPackageVersion>10.0.22621.38</WindowsSdkPackageVersion>
+    <!-- WinRT Source Generator (CsWinRT) при новой версии SDK может генерировать unsafe — нужно для WinUI/App. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 </Project>

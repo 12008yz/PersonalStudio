@@ -30,4 +30,19 @@
   <data name="MainPage_ActivityLogHeader.Text" xml:space="preserve">
     <value>Журнал</value>
   </data>
+  <data name="MainPage_CaptureTestButton.Content" xml:space="preserve">
+    <value>Проверить захват экрана (10 с)</value>
+  </data>
+  <data name="CaptureTest_NoMonitors" xml:space="preserve">
+    <value>Мониторы не найдены.</value>
+  </data>
+  <data name="CaptureTest_Started" xml:space="preserve">
+    <value>Тест захвата на {0}, 10 секунд…</value>
+  </data>
+  <data name="CaptureTest_Result" xml:space="preserve">
+    <value>Тест захвата завершён: кадров {0}, ~{1:F1} к/с, пустых кадров: {2}, длительность: {3:F1} с.</value>
+  </data>
+  <data name="CaptureTest_Error" xml:space="preserve">
+    <value>Ошибка теста захвата: {0}</value>
+  </data>
 </root>

@@ -1,0 +1,197 @@
+using System.Diagnostics;
+using System.Threading;
+using Microsoft.Extensions.Logging;
+using Windows.Graphics;
+using Windows.Graphics.Capture;
+using Windows.Graphics.DirectX;
+using Windows.Graphics.DirectX.Direct3D11;
+
+namespace ScreenRecorder.RecordingEngine.Capture;
+
+/// <summary>
+/// Windows.Graphics.Capture session for one monitor: stable frame stream + QPC timestamps (видеопайплайн без кодека).
+/// </summary>
+public sealed class MonitorFrameCaptureSession : IDisposable
+{
+    private readonly ILogger<MonitorFrameCaptureSession>? _logger;
+    private readonly object _gate = new();
+    private readonly Stopwatch _stopwatch = new();
+
+    private WinRtGraphicsDevice? _graphics;
+    private GraphicsCaptureItem? _item;
+    private Direct3D11CaptureFramePool? _pool;
+    private GraphicsCaptureSession? _session;
+
+    private int _active;
+    private long _frames;
+    private long _emptyFrames;
+    private long _lastQpc;
+    private TimeSpan _lastSystemRelative;
+    private SizeInt32 _poolSize;
+
+    public MonitorFrameCaptureSession(ILogger<MonitorFrameCaptureSession>? logger = null)
+    {
+        _logger = logger;
+    }
+
+    public bool IsRunning => Volatile.Read(ref _active) != 0;
+
+    public void Start(nint hmonitor)
+    {
+        lock (_gate)
+        {
+            if (_session is not null)
+                throw new InvalidOperationException("Capture session is already running.");
+
+            try
+            {
+                _graphics = WinRtGraphicsDevice.CreateHardwareOrWarp();
+                _item = GraphicsCaptureItemFactory.CreateForMonitor(hmonitor);
+                _item.Closed += OnItemClosed;
+
+                _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+                    _graphics.WinRt,
+                    DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                    2,
+                    _item.Size);
+
+                _poolSize = _item.Size;
+
+                _pool.FrameArrived += OnFrameArrived;
+
+                _session = _pool.CreateCaptureSession(_item);
+                _session.IsCursorCaptureEnabled = false;
+
+                _frames = 0;
+                _emptyFrames = 0;
+                _stopwatch.Restart();
+                Volatile.Write(ref _active, 1);
+                _session.StartCapture();
+            }
+            catch
+            {
+                Volatile.Write(ref _active, 0);
+                TeardownLocked();
+                throw;
+            }
+        }
+    }
+
+    public void Stop()
+    {
+        lock (_gate)
+        {
+            Volatile.Write(ref _active, 0);
+            TeardownLocked();
+        }
+    }
+
+    public FrameCaptureMetrics GetMetrics()
+    {
+        return new FrameCaptureMetrics(
+            Interlocked.Read(ref _frames),
+            Interlocked.Read(ref _emptyFrames),
+            _stopwatch.IsRunning ? _stopwatch.Elapsed : TimeSpan.Zero,
+            Volatile.Read(ref _lastQpc),
+            _lastSystemRelative);
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            Volatile.Write(ref _active, 0);
+            TeardownLocked();
+        }
+    }
+
+    private void OnItemClosed(GraphicsCaptureItem sender, object args)
+    {
+        _logger?.LogWarning("GraphicsCaptureItem closed (display detached or capture stopped by the system).");
+        // Не вызывать Stop() синхронно: во время StartCapture() обработчик может прийти на том же потоке,
+        // пока Start() удерживает lock — будет взаимная блокировка.
+        ThreadPool.UnsafeQueueUserWorkItem(_ =>
+        {
+            try
+            {
+                Stop();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error while stopping after capture item closed.");
+            }
+        }, null);
+    }
+
+    private void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
+    {
+        if (Volatile.Read(ref _active) == 0)
+            return;
+
+        try
+        {
+            var qpc = Stopwatch.GetTimestamp();
+            using var frame = sender.TryGetNextFrame();
+            if (frame is null)
+            {
+                Interlocked.Increment(ref _emptyFrames);
+                return;
+            }
+
+            var contentSize = frame.ContentSize;
+            if (contentSize.Width != _poolSize.Width || contentSize.Height != _poolSize.Height)
+            {
+                var g = _graphics;
+                if (g is null)
+                    return;
+
+                try
+                {
+                    sender.Recreate(
+                        g.WinRt,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        contentSize);
+                    _poolSize = contentSize;
+                    _logger?.LogInformation("Direct3D11CaptureFramePool recreated at {Width}x{Height}", contentSize.Width, contentSize.Height);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Direct3D11CaptureFramePool.Recreate failed for {Width}x{Height}.", contentSize.Width, contentSize.Height);
+                }
+            }
+
+            Interlocked.Increment(ref _frames);
+            Volatile.Write(ref _lastQpc, qpc);
+            _lastSystemRelative = frame.SystemRelativeTime;
+
+            // Фаза B: не читаем surface; только метрики и своевременный release кадра.
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "FrameArrived handler failed.");
+        }
+    }
+
+    private void TeardownLocked()
+    {
+        _stopwatch.Stop();
+
+        if (_item is not null)
+            _item.Closed -= OnItemClosed;
+
+        _session?.Dispose();
+        _session = null;
+
+        if (_pool is not null)
+        {
+            _pool.FrameArrived -= OnFrameArrived;
+            _pool.Dispose();
+            _pool = null;
+        }
+
+        _item = null;
+        _graphics?.Dispose();
+        _graphics = null;
+    }
+}

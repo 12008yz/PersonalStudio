@@ -66,12 +66,39 @@
 dotnet build ScreenRecorder.slnx -c Release
 ```
 
-Запуск отладочной упакованной сборки: из каталога `src/ScreenRecorder.App` — `dotnet run` (поддержка через `Microsoft.Windows.SDK.BuildTools.WinApp`).
+Сборка всего решения проходит **без** `-p:Platform=…` (это нормальная конфигурация по умолчанию для SDK-style проектов). Явное сочетание `ScreenRecorder.slnx` + `-p:Platform=x64` в текущем виде файла решения может дать **MSB4126** («недопустимая конфигурация») — в таком случае собирайте проект приложения напрямую:
+
+```text
+dotnet build src/ScreenRecorder.App/ScreenRecorder.App.csproj -c Release -p:Platform=x64
+```
+
+Запуск отладочной упакованной сборки: из каталога `src/ScreenRecorder.App` — `dotnet run -p:Platform=x64` (или без `Platform`, если так настроен ваш шаблон; поддержка через `Microsoft.Windows.SDK.BuildTools.WinApp`).
+
+Для WinUI в привычном inner-loop часто указывают `-p:Platform=x64` (или `x86` / `ARM64`) **на уровне `.csproj`**, а не `.slnx` с явной платформой.
+
+## Тесты
+
+Модульные тесты ядра (`ScreenRecorder.RecordingEngine.Tests`, MSTest):
+
+```text
+dotnet test src/ScreenRecorder.RecordingEngine.Tests/ScreenRecorder.RecordingEngine.Tests.csproj -c Debug -p:Platform=x64
+```
+
+Не используйте `dotnet test ... --no-build`, если перед этим тестовый проект не собирали с **тем же** `Configuration` / `Platform` — иначе тестовая сборка может не находиться по пути.
+
+Часть проверок завязана на интерактивную Windows-сессию с мониторами (перечисление дисплеев).
+
+## Захват экрана (ограничения на этапе WGC)
+
+- **DRM и защищённый контент:** окна или области с защитой от копирования могут давать **чёрный кадр** или пустой вывод — это ограничение ОС/политики контента, а не «сломанный код».
+- **Смена разрешения и масштаба:** при изменении режима дисплея во время захвата пайплайн должен **пересоздавать** пул кадров (`Direct3D11CaptureFramePool.Recreate`); в движке это учтено по `ContentSize` кадра. Полные сценарии и UX-сообщения — по [SCREEN_RECORDER_PLAN_TODO.md](SCREEN_RECORDER_PLAN_TODO.md) (фаза B).
+- **DPI:** в приложении заявлен **PerMonitorV2** (`app.manifest`); регрессия на 125% / 150% — в чеклисте плана.
 
 ## Структура
 
 - `src/ScreenRecorder.App` — WinUI 3, только UI и сценарии.
 - `src/ScreenRecorder.RecordingEngine` — ядро записи без зависимостей от UI.
+- `src/ScreenRecorder.RecordingEngine.Tests` — модульные тесты для `RecordingEngine`.
 - `src/ScreenRecorder.MfSpike` — спайк A: синтетическое видео → MP4 без FFmpeg (см. [src/ScreenRecorder.MfSpike/README.md](src/ScreenRecorder.MfSpike/README.md)).
 - `src/ScreenRecorder.VariantBSpike` — спайк B: GDI **5 с** + синус в **WAV** → один MP4 (аудио на выходе обычно **AAC**; см. [src/ScreenRecorder.VariantBSpike/README.md](src/ScreenRecorder.VariantBSpike/README.md)).
 - `docs/HARDWARE_CODEC_MATRIX.md` — шаблон таблицы для ручной фиксации кодеков на разных GPU.

@@ -58,7 +58,7 @@
 
 - [x] .NET: одна LTS-ветка на весь проект (не прыгать между major без причины). _(основной стек: **.NET 8** — App, RecordingEngine, спайки.)_
 - [x] UI: WinUI 3 + Windows App SDK (stable).
-- [ ] Захват экрана: Windows.Graphics.Capture (основной путь); DXGI Duplication — только при блокерах.
+- [x] Захват экрана: Windows.Graphics.Capture (основной путь); DXGI Duplication — только при блокерах. _(WGC + D3D11 в `RecordingEngine.Capture`, тест — кнопка в App; DXGI не делали.)_
 - [ ] Кодирование/контейнер: Media Foundation (`IMFSinkWriter`, H.264 MFT, AAC MFT).
 - [ ] Аудио: WASAPI (+ удобный слой, напр. NAudio); единая номинальная частота (предпочтительно 48 kHz).
 - [x] Логи: `Microsoft.Extensions.Logging` (debug подробно, release без PII). _(подключено в App; политика release — донастроить в фазе F.)_
@@ -71,7 +71,7 @@
 
 - [x] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке. _(каркас; тяжёлых циклов нет.)_
 - [ ] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
-- [ ] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени.
+- [x] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени. _(в `MonitorFrameCaptureSession`: QPC + `SystemRelativeTime`; без очереди под энкодер — фаза D.)_
 - [ ] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке).
 - [ ] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure).
 - [ ] Device layer — мониторы, аудиоустройства, «устройство отключили».
@@ -87,19 +87,21 @@
 - [x] Версионирование: `AssemblyInformationalVersion`, единый AppId. _(версия через корневой `Directory.Build.props`; папка настроек — `ApplicationIdentity.LocalAppDataFolderName`.)_
 - [x] `EditorConfig`, nullable, warnings-as-errors для `RecordingEngine` (минимум).
 - [x] DI (`Microsoft.Extensions.DependencyInjection`): сессия, логгер, настройки. _(DI + лог + `IAppSettingsStore`; сессия записи — фаза E.)_
+- [x] Модульные тесты `RecordingEngine` (MSTest): `FrameCaptureMetrics`, перечисление мониторов. См. `src/ScreenRecorder.RecordingEngine.Tests`.
 - [x] **Готово:** пустое окно, лог, чтение/запись настроек.
 
 ---
 
 ## Фаза B — захват экрана без кодирования (неделя 1–2)
 
-- [ ] Перечисление дисплеев + связка с `GraphicsCaptureItem`.
-- [ ] `GraphicsCaptureSession` + Direct3D11 interop: стабильный поток кадров + timestamp.
-- [ ] Debug: FPS, дропы, средняя задержка кадра.
-- [ ] Ошибки: права, конфликт захвата, смена разрешения/масштаба.
-- [ ] DPI: PerMonitorV2, тест 125% / 150%.
+- [x] Перечисление дисплеев + связка с `GraphicsCaptureItem`.
+- [x] `GraphicsCaptureSession` + Direct3D11 interop: стабильный поток кадров + timestamp.
+- [x] Debug: FPS и учёт «пустых» кадров (`FrameCaptureMetrics`).
+- [ ] Debug: средняя задержка кадра (от системной метки до обработчика) — не измеряем.
+- [ ] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(частично: `Recreate` пула при смене `ContentSize` в `MonitorFrameCaptureSession`; сообщения пользователю — позже.)_
+- [ ] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `app.manifest`; ручные прогоны — в чеклисте.)_
 - [ ] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач).
-- [ ] **Ограничение:** зафиксировать в UX/доках возможный **чёрный экран** на DRM/защищённом контенте (ожидаемо).
+- [x] **Ограничение:** зафиксировать в UX/доках возможный **чёрный экран** на DRM/защищённом контенте (ожидаемо). _(раздел в [README.md](README.md) «Захват экрана (ограничения)».)_
 
 ---
 

@@ -28,6 +28,11 @@
                 x:Uid="MainPage_RecordButton"
                 HorizontalAlignment="Left"
                 IsEnabled="False" />
+            <Button
+                x:Name="CaptureTestButton"
+                x:Uid="MainPage_CaptureTestButton"
+                HorizontalAlignment="Left"
+                Click="CaptureTestButton_Click" />
 
             <TextBlock
                 x:Uid="MainPage_ActivityLogHeader"
