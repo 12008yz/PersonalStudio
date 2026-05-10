@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Windows.Graphics.DirectX.Direct3D11;
+using WinRT;
 
 namespace ScreenRecorder.RecordingEngine.Capture;
 
@@ -16,10 +17,9 @@ internal static class D3D11WinRtInterop
 
         try
         {
-            var device = Marshal.GetObjectForIUnknown(unk) as IDirect3DDevice;
-            if (device is null)
-                throw new InvalidOperationException("CreateDirect3D11DeviceFromDXGIDevice returned an unsupported COM object.");
-            return device;
+            // Marshal.GetObjectForIUnknown даёт RCW, с которым WinRT API (CreateFreeThreaded) часто даёт InvalidCastException;
+            // нужна CsWinRT-проекция — см. Microsoft Q&A / Stack Overflow по Direct3D11CaptureFramePool.
+            return MarshalInterface<IDirect3DDevice>.FromAbi(unk);
         }
         finally
         {

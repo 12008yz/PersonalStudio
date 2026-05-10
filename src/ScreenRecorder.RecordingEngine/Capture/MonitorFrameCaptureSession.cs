@@ -110,7 +110,8 @@ public sealed class MonitorFrameCaptureSession : IDisposable
         return new FrameCaptureMetrics(
             Interlocked.Read(ref _frames),
             Interlocked.Read(ref _emptyFrames),
-            _stopwatch.IsRunning ? _stopwatch.Elapsed : TimeSpan.Zero,
+            // После Stop() IsRunning == false, но Elapsed хранит итог до остановки; иначе длительность и FPS обнуляются.
+            _stopwatch.Elapsed,
             Volatile.Read(ref _lastQpc),
             _lastSystemRelative,
             avgLatencyMs,

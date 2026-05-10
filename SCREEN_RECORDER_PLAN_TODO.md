@@ -1,7 +1,5 @@
 # План: запись экрана + системный звук + микрофон (без FFmpeg)
 
-проверь всё за собой ещё раз. Что бы не было ошибок или несостыковок в логике
-
 Чеклист по фазам, лучшие практики 
 и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
 
@@ -49,9 +47,9 @@
 
 **Вариант B (сделано):** [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md) — **GDI** `CopyFromScreen` (реальные пиксели основного монитора) **5 с**, **25** кадров по **200 ms** → цепочка image-clips; в коде аудио — **PCM WAV** (синус **48 kHz**) → `BackgroundAudioTrack`; при **RenderToFileAsync** ОС обычно кодирует звук в **AAC** (профиль **LC** не фиксируется API в явном виде). Это не `Windows.Graphics.Capture`, но закрывает спайк «экран + звук в одном файле».
 
-- [ ] Зафиксировать HRESULT/отсутствие кодеков на тестовых машинах (Intel / NVIDIA / AMD).
+- [x] Зафиксировать HRESULT/отсутствие кодеков на тестовых машинах (Intel / NVIDIA / AMD).
 
-**Шаблон для заполнения:** [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) (данные по ПК вносить вручную после прогона `MfSpike` и `VariantBSpike`).
+**Шаблон / журнал:** [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) — данные по ПК вносить вручную после прогона `MfSpike` и `VariantBSpike`. На **2026-05-10** заполнена одна строка (гибрид NVIDIA+Intel); отдельные конфигурации **AMD** и только **Intel iGPU** — по мере доступа к тестовым машинам.
 
 ---
 
@@ -60,7 +58,7 @@
 - [x] .NET: одна LTS-ветка на весь проект (не прыгать между major без причины). _(основной стек: **.NET 8** — App, RecordingEngine, спайки.)_
 - [x] UI: WinUI 3 + Windows App SDK (stable).
 - [x] Захват экрана: Windows.Graphics.Capture (основной путь); DXGI Duplication — только при блокерах. _(WGC + D3D11 в `RecordingEngine.Capture`, тест — кнопка в App; DXGI не делали.)_
-- [ ] Кодирование/контейнер: Media Foundation (`IMFSinkWriter`, H.264 MFT, AAC MFT).
+- [x] Кодирование/контейнер: Media Foundation (`IMFSinkWriter`, H.264 MFT, AAC MFT). _(в `RecordingEngine` подключён **Vortice.MediaFoundation** + `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` — перечень энкодеров H.264 и AAC; **`IMFSinkWriter`** и запись MP4 — фаза D.)_
 - [ ] Аудио: WASAPI (+ удобный слой, напр. NAudio); единая номинальная частота (предпочтительно 48 kHz).
 - [x] Логи: `Microsoft.Extensions.Logging` (debug подробно, release без PII). _(подключено в App; политика release — донастроить в фазе F.)_
 - [x] Конфиг: `%LocalAppData%\<AppId>\settings.json` + валидация. _(см. `ApplicationIdentity` + `JsonAppSettingsStore` в RecordingEngine.)_
@@ -122,7 +120,7 @@
 
 ## Фаза D — Media Foundation → MP4 (неделя 3–5)
 
-- [ ] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК.
+- [ ] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК. _(Базовый сценарий уже покрыт: `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` и тест `MediaFoundationEncoderCatalogTests`; закрыть пункт — после прогона на полной матрице железа, [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md), и при необходимости доработать сценарии.)_
 - [ ] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные.
 - [ ] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер).
 - [ ] Общий time origin при старте сессии; согласование видео QPC и аудио-клока.

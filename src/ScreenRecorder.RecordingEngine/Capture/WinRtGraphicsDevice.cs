@@ -70,7 +70,24 @@ public sealed class WinRtGraphicsDevice : IDisposable
 
     public void Dispose()
     {
-        (WinRt as IDisposable)?.Dispose();
-        _d3d11.Dispose();
+        // WinRT IDirect3DDevice из CreateDirect3D11DeviceFromDXGIDevice: RCW не поддерживает cast к System.IDisposable
+        // (E_NOINTERFACE / IID 805D7A98-...); закрытие через WinRT IClosable.Close() — вызываем динамически (CsWinRT vs Marshal.GetObjectForIUnknown).
+        try
+        {
+            dynamic w = WinRt;
+            w.Close();
+        }
+        catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            // нет метода Close — полагаемся на GC для WinRT-обёртки
+        }
+        catch (Exception)
+        {
+            // иные ошибки Close — всё равно освобождаем D3D11 ниже
+        }
+        finally
+        {
+            _d3d11.Dispose();
+        }
     }
 }

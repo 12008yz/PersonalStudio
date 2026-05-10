@@ -101,4 +101,4 @@ dotnet test src/ScreenRecorder.RecordingEngine.Tests/ScreenRecorder.RecordingEng
 - `src/ScreenRecorder.RecordingEngine.Tests` — модульные тесты для `RecordingEngine`.
 - `src/ScreenRecorder.MfSpike` — спайк A: синтетическое видео → MP4 без FFmpeg (см. [src/ScreenRecorder.MfSpike/README.md](src/ScreenRecorder.MfSpike/README.md)).
 - `src/ScreenRecorder.VariantBSpike` — спайк B: GDI **5 с** + синус в **WAV** → один MP4 (аудио на выходе обычно **AAC**; см. [src/ScreenRecorder.VariantBSpike/README.md](src/ScreenRecorder.VariantBSpike/README.md)).
-- `docs/HARDWARE_CODEC_MATRIX.md` — шаблон таблицы для ручной фиксации кодеков на разных GPU.
+- `docs/HARDWARE_CODEC_MATRIX.md` — таблица ручной фиксации результатов спайков на разных GPU (построчно по ПК).
