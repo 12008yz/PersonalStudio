@@ -45,11 +45,17 @@
   <data name="MainPage_CaptureTestButton.Content" xml:space="preserve">
     <value>Проверить захват экрана (10 с)</value>
   </data>
+  <data name="MainPage_CaptureTest60Button.Content" xml:space="preserve">
+    <value>Проверить захват экрана (60 с)</value>
+  </data>
   <data name="CaptureTest_NoMonitors" xml:space="preserve">
     <value>Мониторы не найдены.</value>
   </data>
   <data name="CaptureTest_Started" xml:space="preserve">
     <value>Тест захвата на {0}, 10 секунд…</value>
+  </data>
+  <data name="CaptureTest60_Started" xml:space="preserve">
+    <value>Тест захвата на {0}, 60 секунд…</value>
   </data>
   <data name="CaptureTest_Result" xml:space="preserve">
     <value>Тест захвата завершён: кадров {0}, ~{1:F1} к/с, пустых кадров: {2}, длительность: {3:F1} с. Средняя задержка: {4}; последняя: {5}.</value>
@@ -62,6 +68,27 @@
   </data>
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Ошибка теста захвата: {0}</value>
+  </data>
+  <data name="CaptureError_AccessDenied" xml:space="preserve">
+    <value>Доступ запрещён. В Параметры Windows → Конфиденциальность и безопасность разрешите этому приложению запись экрана (захват экрана / запись рабочего стола), затем повторите попытку.</value>
+  </data>
+  <data name="CaptureError_ResourceBusy" xml:space="preserve">
+    <value>Захват занят другим приложением или недоступен. Закройте другие рекордеры экрана или инструменты, удерживающие вывод, и попробуйте снова.</value>
+  </data>
+  <data name="CaptureError_AccessLostOrDevice" xml:space="preserve">
+    <value>Потерян доступ к дисплею или GPU (смена разрешения, сон, драйвер). Дождитесь стабильного рабочего стола и повторите тест.</value>
+  </data>
+  <data name="CaptureError_InvalidArgument" xml:space="preserve">
+    <value>Монитор недоступен или параметры захвата неверны (например отключён дисплей). Выберите другой монитор или восстановите подключение.</value>
+  </data>
+  <data name="CaptureError_ObjectDisposed" xml:space="preserve">
+    <value>Сессия захвата уже закрыта. Запустите тест снова.</value>
+  </data>
+  <data name="CaptureError_UnknownWithDetail" xml:space="preserve">
+    <value>Неожиданная ошибка: {0}</value>
+  </data>
+  <data name="CaptureTest_PoolRecreateFailures" xml:space="preserve">
+    <value>Предупреждение: не удалось пересоздать пул кадров {0} раз(а) во время теста (смена разрешения или масштаба). Если картинка зависла, повторите тест после стабилизации рабочего стола.</value>
   </data>
   <data name="MainPage_DualAudioTestButton.Content" xml:space="preserve">
     <value>Проверить микрофон + системный звук (10 с)</value>

@@ -39,7 +39,7 @@
 
 - **Референсный сценарий:** вывод/захват до **1920×1080**, **30 fps** на типичном ноутбуке (см. план). MVP по-прежнему пишет **весь выбранный монитор**; при **1440p/4K** нагрузка выше эталона — отдельные целевые пороги можно задать позже.
 - **Дропы кадров:** на референсе доля пропусков на скользящем окне **60 с** — не выше **5%** (`RecordingNfrSpec.MaxFrameDropRatioPerRolling60Seconds`).
-- **A/V:** на контрольных клипах ориентир по модулю рассинхрона **±100 ms** (`RecordingNfrSpec.AcceptableAvDriftMilliseconds`), уточняется после появления пайплайна.
+- **A/V:** на контрольных клипах ориентир по модулю рассинхрона **±100 ms** (`RecordingNfrSpec.AcceptableAvDriftMilliseconds`), уточняется после появления пайплайна. Политика на **длинных** сессиях (дрейф часов, ресэмплинг, метки): [docs/AV_DRIFT_POLICY.md](docs/AV_DRIFT_POLICY.md).
 - **Сбои:** явные сообщения пользователю (`RecordingNfrSpec.SurfaceFailuresToUser`), по возможности контролируемая остановка и финализация файла.
 
 Единая точка в коде: `ScreenRecorder.RecordingEngine.RecordingNfrSpec`.
@@ -91,8 +91,8 @@ dotnet test src/ScreenRecorder.RecordingEngine.Tests/ScreenRecorder.RecordingEng
 ## Захват экрана (ограничения на этапе WGC)
 
 - **DRM и защищённый контент:** окна или области с защитой от копирования могут давать **чёрный кадр** или пустой вывод — это ограничение ОС/политики контента, а не «сломанный код».
-- **Смена разрешения и масштаба:** при изменении режима дисплея во время захвата пайплайн должен **пересоздавать** пул кадров (`Direct3D11CaptureFramePool.Recreate`); в движке это учтено по `ContentSize` кадра. Полные сценарии и UX-сообщения — по [SCREEN_RECORDER_PLAN_TODO.md](SCREEN_RECORDER_PLAN_TODO.md) (фаза B).
-- **DPI:** в приложении заявлен **PerMonitorV2** (`app.manifest`); регрессия на 125% / 150% — в чеклисте плана.
+- **Смена разрешения и масштаба:** при изменении режима дисплея во время захвата пайплайн **пересоздаёт** пул кадров (`Direct3D11CaptureFramePool.Recreate`) по `ContentSize`; неудачи накапливаются в `FrameCaptureMetrics.PoolRecreateFailureCount` (счётчик **обнуляется при каждом** `MonitorFrameCaptureSession.Start`). В тесте захвата при ненулевом значении показывается предупреждение в логе активности. Типовые ошибки старта захвата (права, занятость, GPU) классифицируются в `ScreenCaptureFailureClassifier` (в т.ч. вложенный `AggregateException`) и выводятся локализованно из строк `CaptureError_*` в `Strings/`.
+- **DPI:** в приложении заявлен **PerMonitorV2** (`src/ScreenRecorder.App/app.manifest`). Ручная регрессия на масштабе **125%** и **150%** — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md).
 
 ## Структура
 

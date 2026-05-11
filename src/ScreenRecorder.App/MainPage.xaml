@@ -33,6 +33,11 @@
                 x:Uid="MainPage_CaptureTestButton"
                 HorizontalAlignment="Left"
                 Click="CaptureTestButton_Click" />
+            <Button
+                x:Name="CaptureTest60Button"
+                x:Uid="MainPage_CaptureTest60Button"
+                HorizontalAlignment="Left"
+                Click="CaptureTest60Button_Click" />
 
             <TextBlock
                 x:Uid="MainPage_AudioSection"

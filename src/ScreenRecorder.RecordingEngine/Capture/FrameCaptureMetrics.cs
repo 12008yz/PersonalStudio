@@ -10,7 +10,8 @@ public readonly struct FrameCaptureMetrics
         long lastFrameQpcTicks,
         TimeSpan lastFrameSystemRelativeTime,
         double averageFrameHandlerLatencyMs = double.NaN,
-        double lastFrameHandlerLatencyMs = double.NaN)
+        double lastFrameHandlerLatencyMs = double.NaN,
+        long poolRecreateFailureCount = 0)
     {
         FramesReceived = framesReceived;
         EmptyFrames = emptyFrames;
@@ -20,6 +21,7 @@ public readonly struct FrameCaptureMetrics
         AverageFps = elapsed.TotalSeconds > 0.01 ? framesReceived / elapsed.TotalSeconds : 0;
         AverageFrameHandlerLatencyMilliseconds = averageFrameHandlerLatencyMs;
         LastFrameHandlerLatencyMilliseconds = lastFrameHandlerLatencyMs;
+        PoolRecreateFailureCount = poolRecreateFailureCount;
     }
 
     public long FramesReceived { get; }
@@ -43,4 +45,10 @@ public readonly struct FrameCaptureMetrics
 
     /// <summary>Задержка последнего кадра, вошедшего в выборку латентности, мс; <see cref="double.NaN"/>, если таких кадров не было.</summary>
     public double LastFrameHandlerLatencyMilliseconds { get; }
+
+    /// <summary>
+    /// Сколько раз не удалось <c>Direct3D11CaptureFramePool.Recreate</c> при смене <c>ContentSize</c> (разрешение, масштаб DPI)
+    /// с момента последнего успешного <c>Start</c> сеанса.
+    /// </summary>
+    public long PoolRecreateFailureCount { get; }
 }

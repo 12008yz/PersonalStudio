@@ -5,6 +5,7 @@ namespace ScreenRecorder.RecordingEngine.MediaFoundation;
 
 /// <summary>
 /// Сопряжение <c>MFStartup</c>/<c>MFShutdown</c>: на процесс хватает парных вызовов; используем счётчик для общей библиотеки.
+/// Политика STA/MTA и потоков для MF — в <c>docs/COM_AND_THREADING.md</c> в корне репозитория.
 /// </summary>
 public static class MediaFoundationLifetime
 {

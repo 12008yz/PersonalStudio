@@ -35,5 +35,13 @@ public sealed class FrameCaptureMetricsTests
         var m = new FrameCaptureMetrics(2, 0, TimeSpan.FromSeconds(1), 0, TimeSpan.Zero, 4.25, 10);
         Assert.AreEqual(4.25, m.AverageFrameHandlerLatencyMilliseconds, 1e-9);
         Assert.AreEqual(10, m.LastFrameHandlerLatencyMilliseconds, 1e-9);
+        Assert.AreEqual(0, m.PoolRecreateFailureCount);
+    }
+
+    [TestMethod]
+    public void Constructor_PoolRecreateFailureCount_Preserved()
+    {
+        var m = new FrameCaptureMetrics(0, 0, TimeSpan.Zero, 0, TimeSpan.Zero, double.NaN, double.NaN, poolRecreateFailureCount: 3);
+        Assert.AreEqual(3, m.PoolRecreateFailureCount);
     }
 }

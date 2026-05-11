@@ -102,6 +102,32 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private static string FormatScreenCaptureFailureForUser(
+        ScreenCaptureFailureKind kind,
+        Exception ex,
+        ResourceLoader loader)
+    {
+        var key = kind switch
+        {
+            ScreenCaptureFailureKind.AccessDenied => "CaptureError_AccessDenied",
+            ScreenCaptureFailureKind.ResourceBusy => "CaptureError_ResourceBusy",
+            ScreenCaptureFailureKind.AccessLostOrDeviceFailed => "CaptureError_AccessLostOrDevice",
+            ScreenCaptureFailureKind.InvalidArgument => "CaptureError_InvalidArgument",
+            ScreenCaptureFailureKind.ObjectDisposedOrClosed => "CaptureError_ObjectDisposed",
+            _ => null,
+        };
+
+        if (key is not null)
+        {
+            var s = loader.GetString(key);
+            if (!string.IsNullOrWhiteSpace(s))
+                return s;
+        }
+
+        var fallback = loader.GetString("CaptureError_UnknownWithDetail") ?? "{0}";
+        return string.Format(CultureInfo.CurrentCulture, fallback, ex.Message);
+    }
+
     private static List<AudioPickerRow> BuildAudioRows(
         IReadOnlyList<AudioEndpointDescriptor> endpoints,
         ResourceLoader loader)
@@ -204,6 +230,16 @@ public sealed partial class MainPage : Page
 
     private async void CaptureTestButton_Click(object sender, RoutedEventArgs e)
     {
+        await RunMonitorCaptureTestAsync(10, "CaptureTest_Started").ConfigureAwait(true);
+    }
+
+    private async void CaptureTest60Button_Click(object sender, RoutedEventArgs e)
+    {
+        await RunMonitorCaptureTestAsync(60, "CaptureTest60_Started").ConfigureAwait(true);
+    }
+
+    private async Task RunMonitorCaptureTestAsync(int durationSeconds, string startedKey)
+    {
         var activityLog = App.Services.GetRequiredService<ActivityLog>();
         var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
         var loader = new ResourceLoader();
@@ -214,6 +250,8 @@ public sealed partial class MainPage : Page
         }
 
         CaptureTestButton.IsEnabled = false;
+        CaptureTest60Button.IsEnabled = false;
+
         try
         {
             var monitors = DisplayMonitorEnumeration.EnumerateMonitors();
@@ -224,14 +262,14 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            var startedFmt = loader.GetString("CaptureTest_Started") ?? "{0}";
+            var startedFmt = loader.GetString(startedKey) ?? "{0}";
             AppendUiLine(string.Format(CultureInfo.CurrentCulture, startedFmt, target.DeviceName));
 
             using var session = new MonitorFrameCaptureSession(
                 App.Services.GetService<ILogger<MonitorFrameCaptureSession>>());
             session.Start(target.MonitorHandle);
 
-            await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            await Task.Delay(TimeSpan.FromSeconds(durationSeconds)).ConfigureAwait(true);
 
             session.Stop();
             var m = session.GetMetrics();
@@ -257,16 +295,31 @@ public sealed partial class MainPage : Page
                 m.Elapsed.TotalSeconds,
                 FormatLatencyMs(CultureInfo.CurrentCulture, latencyMsFmt, latencyNa, m.AverageFrameHandlerLatencyMilliseconds),
                 FormatLatencyMs(CultureInfo.CurrentCulture, latencyMsFmt, latencyNa, m.LastFrameHandlerLatencyMilliseconds)));
+
+            if (m.PoolRecreateFailureCount > 0)
+            {
+                var poolFmt = loader.GetString("CaptureTest_PoolRecreateFailures");
+                if (!string.IsNullOrEmpty(poolFmt))
+                {
+                    AppendUiLine(string.Format(
+                        CultureInfo.CurrentCulture,
+                        poolFmt,
+                        m.PoolRecreateFailureCount));
+                }
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Capture test failed");
+            var kind = ScreenCaptureFailureClassifier.Classify(ex);
+            logger.LogError(ex, "Capture test failed ({Kind})", kind);
             var errFmt = loader.GetString("CaptureTest_Error") ?? "{0}";
-            AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+            var userMsg = FormatScreenCaptureFailureForUser(kind, ex, loader);
+            AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, userMsg));
         }
         finally
         {
             CaptureTestButton.IsEnabled = true;
+            CaptureTest60Button.IsEnabled = true;
         }
     }
 

@@ -41,6 +41,8 @@ public sealed class MonitorFrameCaptureSession : IDisposable
     /// <remarks>Не Interlocked-под сумму: допущение один поток колбэка пула для FrameArrived.</remarks>
     private double _lastHandlerLatencyMilliseconds;
 
+    private long _poolRecreateFailures;
+
     public MonitorFrameCaptureSession(ILogger<MonitorFrameCaptureSession>? logger = null)
     {
         _logger = logger;
@@ -76,6 +78,7 @@ public sealed class MonitorFrameCaptureSession : IDisposable
 
                 _frames = 0;
                 _emptyFrames = 0;
+                _poolRecreateFailures = 0;
                 _latencySumMilliseconds = 0;
                 _latencySampleCount = 0;
                 _lastHandlerLatencyMilliseconds = double.NaN;
@@ -84,10 +87,14 @@ public sealed class MonitorFrameCaptureSession : IDisposable
                 _captureOriginTimestampTicks = Stopwatch.GetTimestamp();
                 _session.StartCapture();
             }
-            catch
+            catch (Exception ex)
             {
                 Volatile.Write(ref _active, 0);
                 TeardownLocked();
+                _logger?.LogError(
+                    ex,
+                    "Monitor capture start failed ({Kind}).",
+                    ScreenCaptureFailureClassifier.Classify(ex));
                 throw;
             }
         }
@@ -115,7 +122,8 @@ public sealed class MonitorFrameCaptureSession : IDisposable
             Volatile.Read(ref _lastQpc),
             _lastSystemRelative,
             avgLatencyMs,
-            _lastHandlerLatencyMilliseconds);
+            _lastHandlerLatencyMilliseconds,
+            Interlocked.Read(ref _poolRecreateFailures));
     }
 
     public void Dispose()
@@ -181,7 +189,12 @@ public sealed class MonitorFrameCaptureSession : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogError(ex, "Direct3D11CaptureFramePool.Recreate failed for {Width}x{Height}.", contentSize.Width, contentSize.Height);
+                    Interlocked.Increment(ref _poolRecreateFailures);
+                    _logger?.LogError(
+                        ex,
+                        "Direct3D11CaptureFramePool.Recreate failed for {Width}x{Height} (resolution/DPI change).",
+                        contentSize.Width,
+                        contentSize.Height);
                 }
             }
 

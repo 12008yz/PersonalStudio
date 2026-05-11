@@ -10,7 +10,7 @@
 
 **Цель (зафиксировано 2026-05-10):** десктопное приложение для Windows — по опыту проще типичного «тяжёлого» рекордера в духе Bandicam, но без упрощения до «игрушки»: приоритет — **стабильный выходной MP4** и **понятные пользователю ошибки** (права, устройства, кодеки, DRM), а не максимум настроек на первом экране.
 
-**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingNfrSpec`, спайки MF — [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) и [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md), шаблон матрицы железа — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md); каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
+**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingNfrSpec`, спайки MF — [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) и [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md), шаблон матрицы железа — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md), **COM/потоки и MF** — [docs/COM_AND_THREADING.md](docs/COM_AND_THREADING.md), **дрейф A/V на длинных сессиях** — [docs/AV_DRIFT_POLICY.md](docs/AV_DRIFT_POLICY.md), **ручной DPI-регресс (125% / 150%)** — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md); каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
 
 - [x] Зафиксировать цель: десктоп «проще Bandicam», но полноценный (стабильный MP4, понятные ошибки).
 - [x] ОС: Windows 10 22H2+ и Windows 11 (x64).
@@ -75,8 +75,8 @@
 - [x] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке). _(контракт `SourcedPcmCaptureDataAvailableEventArgs` + `PcmCaptureSourceKind`; агрегирующее событие `MicAndLoopbackCaptureSession.PcmDataAvailable`.)_
 - [x] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure). _(инфраструктура: `BoundedEncoderWorkQueue<TWorkItem>` в `MediaFoundation`.)_
 - [x] Device layer — мониторы, аудиоустройства, «устройство отключили». _(добавлен `IDeviceTopologyMonitor`/`PollingDeviceTopologyMonitor`: снапшоты мониторов + capture/render endpoints, детекция removal/default-change через событие `TopologyChanged`.)_
-- [ ] **COM/потоки:** явно описать, какие потоки MTA/STA, где `CoInitializeEx`, где живёт SinkWriter; не вызывать MF с UI-потока.
-- [ ] **Дрейф A/V:** политика на длинных записях (30–120+ мин) — resample аудио / редкий drop-дубликат видео / пересчёт таймстемпов.
+- [x] **COM/потоки:** явно описать, какие потоки MTA/STA, где `CoInitializeEx`, где живёт SinkWriter; не вызывать MF с UI-потока. _(см. [docs/COM_AND_THREADING.md](docs/COM_AND_THREADING.md).)_
+- [x] **Дрейф A/V:** политика на длинных записях (30–120+ мин) — resample аудио / редкий drop-дубликат видео / пересчёт таймстемпов. _(см. [docs/AV_DRIFT_POLICY.md](docs/AV_DRIFT_POLICY.md); пороги наблюдения — `RecordingNfrSpec.LongContinuousRecordingMinutesThreshold` / `AvDriftObservationIntervalSeconds`.)_
 
 ---
 
@@ -98,9 +98,9 @@
 - [x] `GraphicsCaptureSession` + Direct3D11 interop: стабильный поток кадров + timestamp.
 - [x] Debug: FPS и учёт «пустых» кадров (`FrameCaptureMetrics`).
 - [x] Debug: средняя задержка кадра относительно `Direct3D11CaptureFrame.SystemRelativeTime` после `TryGetNextFrame` — среднее и последнее в миллисекундах (`FrameCaptureMetrics`, журнал после теста захвата); кадр успешного `Recreate` в выборку латентности не входит, базовая QPC-метка сбрасывается.
-- [ ] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(частично: `Recreate` пула при смене `ContentSize` в `MonitorFrameCaptureSession`; сообщения пользователю — позже.)_
-- [ ] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `app.manifest`; ручные прогоны — в чеклисте.)_
-- [ ] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач).
+- [x] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(`Recreate` по `ContentSize`; счётчик `FrameCaptureMetrics.PoolRecreateFailureCount` + предупреждение в тесте захвата; `ScreenCaptureFailureClassifier` + строки `CaptureError_*` / `CaptureTest_PoolRecreateFailures` в UI.)_
+- [x] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `src/ScreenRecorder.App/app.manifest`; пошаговый ручной регресс — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md).)_
+- [ ] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач). _(в UI добавлен тест захвата на 60 с; запусти его и проверь рост памяти/VRAM в Task Manager)._
 - [x] **Ограничение:** зафиксировать в UX/доках возможный **чёрный экран** на DRM/защищённом контенте (ожидаемо). _(раздел в [README.md](README.md) «Захват экрана (ограничения)».)_
 
 ---
