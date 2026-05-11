@@ -66,6 +66,9 @@
   <data name="CaptureTest_LatencyNA" xml:space="preserve">
     <value>n/a</value>
   </data>
+  <data name="CaptureTest_MemorySample" xml:space="preserve">
+    <value>Memory sample at {0:F0} s: WorkingSet {1:F1} MB, PrivateBytes {2:F1} MB.</value>
+  </data>
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Capture test failed: {0}</value>
   </data>

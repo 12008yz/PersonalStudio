@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -243,10 +244,13 @@ public sealed partial class MainPage : Page
         var activityLog = App.Services.GetRequiredService<ActivityLog>();
         var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
         var loader = new ResourceLoader();
+        var culture = CultureInfo.CurrentCulture;
 
         void AppendUiLine(string line)
         {
-            _ = DispatcherQueue.TryEnqueue(() => activityLog.Entries.Add($"[{DateTime.Now:HH:mm:ss}] {line}"));
+            // Метод вызывается из UI-события и далее продолжает исполняться на UI-потоке:
+            // добавляем в ObservableCollection напрямую, без фоновых enqueue.
+            activityLog.Entries.Add($"[{DateTime.Now:HH:mm:ss}] {line}");
         }
 
         CaptureTestButton.IsEnabled = false;
@@ -269,7 +273,34 @@ public sealed partial class MainPage : Page
                 App.Services.GetService<ILogger<MonitorFrameCaptureSession>>());
             session.Start(target.MonitorHandle);
 
-            await Task.Delay(TimeSpan.FromSeconds(durationSeconds)).ConfigureAwait(true);
+            var memFmt = loader.GetString("CaptureTest_MemorySample") ??
+                         "Memory sample at {0:F0} s: WorkingSet {1:F1} MB, PrivateBytes {2:F1} MB.";
+
+            var proc = Process.GetCurrentProcess();
+            var memStopwatch = Stopwatch.StartNew();
+
+            // RAM-сэмплинг делаем без фоновых Task.Run, чтобы не дергать UI-компоненты/COM-интерфейсы из другого потока.
+            const int sampleEverySeconds = 5;
+            while (true)
+            {
+                var remaining = durationSeconds - memStopwatch.Elapsed.TotalSeconds;
+                if (remaining <= 0)
+                    break;
+
+                var delaySeconds = Math.Min(sampleEverySeconds, remaining);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds)).ConfigureAwait(true);
+
+                var elapsedSeconds = memStopwatch.Elapsed.TotalSeconds;
+                var workingSetMb = proc.WorkingSet64 / 1024d / 1024d;
+                var privateBytesMb = proc.PrivateMemorySize64 / 1024d / 1024d;
+
+                AppendUiLine(string.Format(
+                    culture,
+                    memFmt,
+                    elapsedSeconds,
+                    workingSetMb,
+                    privateBytesMb));
+            }
 
             session.Stop();
             var m = session.GetMetrics();

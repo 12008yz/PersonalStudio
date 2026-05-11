@@ -66,6 +66,9 @@
   <data name="CaptureTest_LatencyNA" xml:space="preserve">
     <value>н/д</value>
   </data>
+  <data name="CaptureTest_MemorySample" xml:space="preserve">
+    <value>Сэмпл памяти на {0:F0} с: WorkingSet {1:F1} МБ, PrivateBytes {2:F1} МБ.</value>
+  </data>
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Ошибка теста захвата: {0}</value>
   </data>
