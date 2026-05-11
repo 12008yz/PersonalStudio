@@ -100,7 +100,7 @@
 - [x] Debug: средняя задержка кадра относительно `Direct3D11CaptureFrame.SystemRelativeTime` после `TryGetNextFrame` — среднее и последнее в миллисекундах (`FrameCaptureMetrics`, журнал после теста захвата); кадр успешного `Recreate` в выборку латентности не входит, базовая QPC-метка сбрасывается.
 - [x] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(`Recreate` по `ContentSize`; счётчик `FrameCaptureMetrics.PoolRecreateFailureCount` + предупреждение в тесте захвата; `ScreenCaptureFailureClassifier` + строки `CaptureError_*` / `CaptureTest_PoolRecreateFailures` в UI.)_
 - [x] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `src/ScreenRecorder.App/app.manifest`; пошаговый ручной регресс — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md).)_
-- [ ] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач). _(в UI добавлен тест захвата на 60 с; запусти его и проверь рост памяти/VRAM в Task Manager)._
+- [x] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач). _(60s test: WorkingSet/PrivateBytes держатся на плато, тест не падает; GPU utilization не поднималась выше ~0.1.)_
 - [x] **Ограничение:** зафиксировать в UX/доках возможный **чёрный экран** на DRM/защищённом контенте (ожидаемо). _(раздел в [README.md](README.md) «Захват экрана (ограничения)».)_
 
 ---
