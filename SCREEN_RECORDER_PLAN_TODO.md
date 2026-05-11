@@ -72,8 +72,8 @@
 - [x] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке. _(каркас; тяжёлых циклов нет.)_
 - [x] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
 - [x] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени. _(в `MonitorFrameCaptureSession`: QPC + `SystemRelativeTime`; без очереди под энкодер — фаза D.)_
-- [ ] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке).
-- [ ] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure).
+- [x] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке). _(контракт `SourcedPcmCaptureDataAvailableEventArgs` + `PcmCaptureSourceKind`; агрегирующее событие `MicAndLoopbackCaptureSession.PcmDataAvailable`.)_
+- [x] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure). _(инфраструктура: `BoundedEncoderWorkQueue<TWorkItem>` в `MediaFoundation`.)_
 - [ ] Device layer — мониторы, аудиоустройства, «устройство отключили». _(мониторы + перечисление аудио; реакции на отключение — позже.)_
 - [ ] **COM/потоки:** явно описать, какие потоки MTA/STA, где `CoInitializeEx`, где живёт SinkWriter; не вызывать MF с UI-потока.
 - [ ] **Дрейф A/V:** политика на длинных записях (30–120+ мин) — resample аудио / редкий drop-дубликат видео / пересчёт таймстемпов.
