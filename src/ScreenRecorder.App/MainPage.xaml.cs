@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -266,6 +267,123 @@ public sealed partial class MainPage : Page
         finally
         {
             CaptureTestButton.IsEnabled = true;
+        }
+    }
+
+    private async void DualAudioTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        var activityLog = App.Services.GetRequiredService<ActivityLog>();
+        var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
+        var loader = new ResourceLoader();
+
+        void AppendUiLine(string line)
+        {
+            _ = DispatcherQueue.TryEnqueue(() => activityLog.Entries.Add($"[{DateTime.Now:HH:mm:ss}] {line}"));
+        }
+
+        DualAudioTestButton.IsEnabled = false;
+        try
+        {
+            if (_currentSettings is null)
+            {
+                AppendUiLine(loader.GetString("DualAudioTest_SettingsNotReady") ?? string.Empty);
+                return;
+            }
+
+            if (MicrophoneCombo.SelectedItem is not AudioPickerRow micPick ||
+                LoopbackCombo.SelectedItem is not AudioPickerRow loopPick)
+            {
+                AppendUiLine(loader.GetString("DualAudioTest_SettingsNotReady") ?? string.Empty);
+                return;
+            }
+
+            AppendUiLine(loader.GetString("DualAudioTest_Started") ?? string.Empty);
+
+            var devicesFmt = loader.GetString("DualAudioTest_DevicesInUse");
+            if (!string.IsNullOrEmpty(devicesFmt))
+            {
+                AppendUiLine(string.Format(
+                    CultureInfo.CurrentCulture,
+                    devicesFmt,
+                    micPick.DisplayLabel,
+                    loopPick.DisplayLabel));
+            }
+
+            long micBytes = 0;
+            long loopBytes = 0;
+
+            using var duo = new MicAndLoopbackCaptureSession(
+                App.Services.GetService<ILogger<MicrophoneCaptureSession>>(),
+                App.Services.GetService<ILogger<LoopbackCaptureSession>>());
+
+            void OnMicPcm(object? _, PcmCaptureDataAvailableEventArgs e) =>
+                Interlocked.Add(ref micBytes, e.PcmSamples.Length);
+
+            void OnLoopPcm(object? _, PcmCaptureDataAvailableEventArgs e) =>
+                Interlocked.Add(ref loopBytes, e.PcmSamples.Length);
+
+            duo.Microphone.PcmDataAvailable += OnMicPcm;
+            duo.Loopback.PcmDataAvailable += OnLoopPcm;
+
+            try
+            {
+                try
+                {
+                    duo.Start(micPick.EndpointId, loopPick.EndpointId);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
+                    AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+                    return;
+                }
+                catch (ArgumentException ex)
+                {
+                    var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
+                    AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+
+                duo.Stop();
+
+                var resultFmt = loader.GetString("DualAudioTest_Result") ?? "{0} {1}";
+                AppendUiLine(string.Format(
+                    CultureInfo.CurrentCulture,
+                    resultFmt,
+                    Interlocked.Read(ref micBytes),
+                    Interlocked.Read(ref loopBytes)));
+
+                if (Interlocked.Read(ref loopBytes) == 0)
+                {
+                    var note = loader.GetString("DualAudioTest_LoopbackZeroNote");
+                    if (!string.IsNullOrEmpty(note))
+                        AppendUiLine(note);
+                }
+
+                if (Interlocked.Read(ref micBytes) == 0)
+                {
+                    AppendUiLine(
+                        loader.GetString("DualAudioTest_MicZeroNote")
+                        ?? "Microphone captured 0 bytes — speak during the test or check the microphone and privacy permissions.");
+                }
+            }
+            finally
+            {
+                duo.Microphone.PcmDataAvailable -= OnMicPcm;
+                duo.Loopback.PcmDataAvailable -= OnLoopPcm;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Dual-audio test failed");
+            var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
+            AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+        }
+        finally
+        {
+            DualAudioTestButton.IsEnabled = true;
         }
     }
 }

@@ -60,17 +60,17 @@
 - [x] UI: WinUI 3 + Windows App SDK (stable).
 - [x] Захват экрана: Windows.Graphics.Capture (основной путь); DXGI Duplication — только при блокерах. _(WGC + D3D11 в `RecordingEngine.Capture`, тест — кнопка в App; DXGI не делали.)_
 - [x] Кодирование/контейнер: Media Foundation (`IMFSinkWriter`, H.264 MFT, AAC MFT). _(в `RecordingEngine` подключён **Vortice.MediaFoundation** + `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` — перечень энкодеров H.264 и AAC; **`IMFSinkWriter`** и запись MP4 — фаза D.)_
-- [ ] Аудио: WASAPI (+ удобный слой, напр. NAudio); единая номинальная частота (предпочтительно 48 kHz).
+- [x] Аудио: WASAPI (+ удобный слой, напр. NAudio); единая номинальная частота (предпочтительно 48 kHz). _(микрофон `MicrophoneCaptureSession`, loopback `LoopbackCaptureSession`, номинал `RecordingAudioSpec.NominalSampleRateHz`.)_
 - [x] Логи: `Microsoft.Extensions.Logging` (debug подробно, release без PII). _(подключено в App; политика release — донастроить в фазе F.)_
 - [x] Конфиг: `%LocalAppData%\<AppId>\settings.json` + валидация. _(см. `ApplicationIdentity` + `JsonAppSettingsStore` в RecordingEngine.)_
-- [ ] Ядро записи: отдельный модуль/сервис с жизненным циклом и `CancellationToken` (не глобальные «магические» синглтоны на всё).
+- [x] Ядро записи: отдельный модуль/сервис с жизненным циклом и `CancellationToken` (не глобальные «магические» синглтоны на всё).
 
 ---
 
 ## 2. Архитектура
 
 - [x] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке. _(каркас; тяжёлых циклов нет.)_
-- [ ] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
+- [x] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
 - [x] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени. _(в `MonitorFrameCaptureSession`: QPC + `SystemRelativeTime`; без очереди под энкодер — фаза D.)_
 - [ ] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке).
 - [ ] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure).
@@ -109,7 +109,7 @@
 
 - [x] Перечисление устройств (`MMDeviceEnumerator` через NAudio Core Audio); UI выбора default/конкретного _(ComboBox на `MainPage`, сохранение в `AppSettings` / JSON). Реальный WASAPI захват по выбранным id — следующие пункты._
 - [x] Микрофон: WASAPI shared → PCM; формат (частота, каналы). _(см. `MicrophoneCaptureSession` + `RecordingAudioSpec.NominalSampleRateHz`; фактический формат — от shared-микшера, целевая 48 kHz — следующий пункт ресэмплинга.)_
-- [ ] Системный звук: WASAPI loopback.
+- [x] Системный звук: WASAPI loopback. _(см. `LoopbackCaptureSession`, `RenderEndpointMmDevice`; буферы только при активном воспроизведении на выбранном выводе.)_
 - [ ] Ресэмплинг к 48 kHz (или одна выбранная частота на весь проект).
 - [ ] **Продуктовое решение:** одна микшированная дорожка **или** две AAC-дорожки в MP4 (v1 vs v1.1 — зафиксировать).
 - [ ] **Акустика:** риск гула без наушников; подсказка в UI; мониторинг выкл по умолчанию; опционально ducking.

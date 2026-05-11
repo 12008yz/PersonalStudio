@@ -63,4 +63,31 @@
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Capture test failed: {0}</value>
   </data>
+  <data name="MainPage_DualAudioTestButton.Content" xml:space="preserve">
+    <value>Test microphone + system sound (10 s)</value>
+  </data>
+  <data name="MainPage_DualAudioHint.Text" xml:space="preserve">
+    <value>Uses the devices selected above. Your voice is captured from the microphone; game and browser audio (e.g. YouTube) are captured from the system output you pick — play sound during the test. Headphones reduce echo from speakers.</value>
+  </data>
+  <data name="DualAudioTest_SettingsNotReady" xml:space="preserve">
+    <value>Settings are not ready yet; wait for the app to finish loading.</value>
+  </data>
+  <data name="DualAudioTest_Started" xml:space="preserve">
+    <value>Dual-audio test running for 10 seconds (mic + loopback)…</value>
+  </data>
+  <data name="DualAudioTest_DevicesInUse" xml:space="preserve">
+    <value>Selected for this test — microphone: {0}; system output (loopback): {1}.</value>
+  </data>
+  <data name="DualAudioTest_Result" xml:space="preserve">
+    <value>Dual-audio test finished: microphone {0:N0} bytes, system sound (loopback) {1:N0} bytes.</value>
+  </data>
+  <data name="DualAudioTest_LoopbackZeroNote" xml:space="preserve">
+    <value>Loopback was 0 bytes — play audio on the selected output (video, game, or a test sound) while the test runs.</value>
+  </data>
+  <data name="DualAudioTest_MicZeroNote" xml:space="preserve">
+    <value>Microphone captured 0 bytes — speak during the test or check microphone selection and privacy settings.</value>
+  </data>
+  <data name="DualAudioTest_Error" xml:space="preserve">
+    <value>Dual-audio test failed: {0}</value>
+  </data>
 </root>

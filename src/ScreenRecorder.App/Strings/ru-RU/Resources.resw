@@ -63,4 +63,31 @@
   <data name="CaptureTest_Error" xml:space="preserve">
     <value>Ошибка теста захвата: {0}</value>
   </data>
+  <data name="MainPage_DualAudioTestButton.Content" xml:space="preserve">
+    <value>Проверить микрофон + системный звук (10 с)</value>
+  </data>
+  <data name="MainPage_DualAudioHint.Text" xml:space="preserve">
+    <value>Используются устройства из списков выше. Голос — с микрофона; звук игры и браузера (например YouTube) — с выбранного вывода: во время теста должно что-то играть. Наушники уменьшают эхо от колонок.</value>
+  </data>
+  <data name="DualAudioTest_SettingsNotReady" xml:space="preserve">
+    <value>Настройки ещё не готовы; дождитесь окончания загрузки приложения.</value>
+  </data>
+  <data name="DualAudioTest_Started" xml:space="preserve">
+    <value>Тест двух каналов (микрофон + loopback), 10 секунд…</value>
+  </data>
+  <data name="DualAudioTest_DevicesInUse" xml:space="preserve">
+    <value>Устройства этого теста — микрофон: {0}; вывод (loopback): {1}.</value>
+  </data>
+  <data name="DualAudioTest_Result" xml:space="preserve">
+    <value>Тест завершён: микрофон {0:N0} байт, системный звук (loopback) {1:N0} байт.</value>
+  </data>
+  <data name="DualAudioTest_LoopbackZeroNote" xml:space="preserve">
+    <value>Loopback = 0 байт — во время теста включите звук на выбранном устройстве вывода (видео, игра или тестовый сигнал).</value>
+  </data>
+  <data name="DualAudioTest_MicZeroNote" xml:space="preserve">
+    <value>Микрофон = 0 байт — говорите во время теста или проверьте выбор микрофона и параметры конфиденциальности Windows.</value>
+  </data>
+  <data name="DualAudioTest_Error" xml:space="preserve">
+    <value>Ошибка теста двух каналов: {0}</value>
+  </data>
 </root>

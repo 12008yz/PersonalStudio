@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using ScreenRecorder.RecordingEngine;
+using ScreenRecorder.RecordingEngine.Recording;
 using ScreenRecorder.RecordingEngine.Settings;
 
 // To learn more about WinUI, the WinUI project structure,
@@ -57,6 +58,8 @@ public partial class App : Application
             new JsonAppSettingsStore(
                 ScreenRecorder.RecordingEngine.ApplicationIdentity.DefaultSettingsFilePath,
                 sp.GetService<ILogger<JsonAppSettingsStore>>()));
+        services.AddSingleton<IRecordingRuntime, RecordingRuntime>();
+        services.AddSingleton<IRecordingSession, RecordingSession>();
 
         Services = services.BuildServiceProvider();
         _servicesConfigured = true;

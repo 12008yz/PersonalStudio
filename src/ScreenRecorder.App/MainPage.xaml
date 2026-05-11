@@ -54,6 +54,16 @@
                 HorizontalAlignment="Stretch"
                 DisplayMemberPath="DisplayLabel"
                 SelectionChanged="AudioDeviceCombo_SelectionChanged" />
+            <TextBlock
+                x:Uid="MainPage_DualAudioHint"
+                Margin="0,4,0,0"
+                TextWrapping="WrapWholeWords"
+                Opacity="0.85" />
+            <Button
+                x:Name="DualAudioTestButton"
+                x:Uid="MainPage_DualAudioTestButton"
+                HorizontalAlignment="Left"
+                Click="DualAudioTestButton_Click" />
 
             <TextBlock
                 x:Uid="MainPage_ActivityLogHeader"
@@ -65,15 +75,21 @@
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="4">
-                <ItemsControl
-                    x:Name="ActivityLogItems"
-                    MaxHeight="200">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" TextWrapping="WrapWholeWords" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <ScrollViewer
+                    MaxHeight="240"
+                    HorizontalScrollMode="Disabled"
+                    VerticalScrollMode="Enabled"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    IsTabStop="True">
+                    <ItemsControl x:Name="ActivityLogItems">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="WrapWholeWords" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </Border>
         </StackPanel>
     </ScrollViewer>

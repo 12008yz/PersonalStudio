@@ -3,7 +3,7 @@ using ScreenRecorder.RecordingEngine.Audio;
 namespace ScreenRecorder.RecordingEngine.Tests;
 
 [TestClass]
-public sealed class MicrophoneCaptureSessionTests
+public sealed class LoopbackCaptureSessionTests
 {
     [TestMethod]
     public void Start_Twice_ThrowsInvalidOperation()
@@ -11,19 +11,19 @@ public sealed class MicrophoneCaptureSessionTests
         if (!OperatingSystem.IsWindowsVersionAtLeast(10))
             Assert.Inconclusive("Windows required.");
 
-        using var session = new MicrophoneCaptureSession();
+        using var session = new LoopbackCaptureSession();
         try
         {
             session.Start(null);
         }
         catch (InvalidOperationException ex)
         {
-            Assert.Inconclusive("No capture endpoint: " + ex.Message);
+            Assert.Inconclusive("No render endpoint: " + ex.Message);
             return;
         }
         catch (ArgumentException ex)
         {
-            Assert.Inconclusive("WASAPI init failed (offline/headless/unsupported audio): " + ex.Message);
+            Assert.Inconclusive("WASAPI loopback init failed (offline/headless/unsupported audio): " + ex.Message);
             return;
         }
 
@@ -38,7 +38,7 @@ public sealed class MicrophoneCaptureSessionTests
     }
 
     [TestMethod]
-    public void PcmDataAvailable_DeliversBytes_OnDefaultDeviceWhenPresent()
+    public void PcmDataAvailable_MayDeliverBytes_WhenOutputIsActive()
     {
         if (!OperatingSystem.IsWindowsVersionAtLeast(10))
         {
@@ -46,7 +46,7 @@ public sealed class MicrophoneCaptureSessionTests
             return;
         }
 
-        using var session = new MicrophoneCaptureSession();
+        using var session = new LoopbackCaptureSession();
         var total = 0;
         session.PcmDataAvailable += (_, e) => total += e.PcmSamples.Length;
 
@@ -56,18 +56,25 @@ public sealed class MicrophoneCaptureSessionTests
         }
         catch (InvalidOperationException ex)
         {
-            Assert.Inconclusive("No capture endpoint: " + ex.Message);
+            Assert.Inconclusive("No render endpoint: " + ex.Message);
             return;
         }
         catch (ArgumentException ex)
         {
-            Assert.Inconclusive("WASAPI init failed (offline/headless/unsupported audio): " + ex.Message);
+            Assert.Inconclusive("WASAPI loopback init failed (offline/headless/unsupported audio): " + ex.Message);
             return;
         }
 
         Assert.IsNotNull(session.RecordingWaveFormat);
         Thread.Sleep(400);
         session.Stop();
-        Assert.IsTrue(total > 0, "Expected PCM from default microphone in shared mode.");
+
+        if (total == 0)
+        {
+            Assert.Inconclusive(
+                "Loopback produced no PCM in the window; this is typical when nothing is playing on the default render device.");
+        }
+
+        Assert.IsTrue(total > 0);
     }
 }

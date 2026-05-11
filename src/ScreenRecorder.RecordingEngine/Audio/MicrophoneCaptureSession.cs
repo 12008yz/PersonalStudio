@@ -19,7 +19,7 @@ public sealed class MicrophoneCaptureSession : IDisposable
         _logger = logger;
     }
 
-    public event EventHandler<MicrophonePcmDataAvailableEventArgs>? PcmDataAvailable;
+    public event EventHandler<PcmCaptureDataAvailableEventArgs>? PcmDataAvailable;
 
     /// <summary>Формат текущего потока; после <see cref="Stop"/> или до <see cref="Start"/> — <c>null</c>.</summary>
     /// <remarks>Без <c>_gate</c>: иначе взаимная блокировка с <see cref="Start"/> при вызове из <see cref="PcmDataAvailable"/>.</remarks>
@@ -112,7 +112,7 @@ public sealed class MicrophoneCaptureSession : IDisposable
         var copy = new byte[e.BytesRecorded];
         Array.Copy(e.Buffer, copy, e.BytesRecorded);
 
-        handler.Invoke(this, new MicrophonePcmDataAvailableEventArgs(copy, fmt));
+        handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(copy, fmt));
     }
 
     public void Stop()

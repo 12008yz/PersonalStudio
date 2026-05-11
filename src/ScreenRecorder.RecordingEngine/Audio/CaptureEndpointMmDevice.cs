@@ -20,7 +20,14 @@ public static class CaptureEndpointMmDevice
             if (string.IsNullOrWhiteSpace(endpointIdOrNull))
                 return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
 
-            return enumerator.GetDevice(endpointIdOrNull);
+            var device = enumerator.GetDevice(endpointIdOrNull);
+            if (device.DataFlow != DataFlow.Capture)
+            {
+                device.Dispose();
+                throw new InvalidOperationException("Endpoint is not an audio capture device.");
+            }
+
+            return device;
         }
         catch (InvalidOperationException)
         {
