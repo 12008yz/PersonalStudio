@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using ScreenRecorder.RecordingEngine;
+using ScreenRecorder.RecordingEngine.Devices;
 using ScreenRecorder.RecordingEngine.Recording;
 using ScreenRecorder.RecordingEngine.Settings;
 
@@ -60,6 +61,7 @@ public partial class App : Application
                 sp.GetService<ILogger<JsonAppSettingsStore>>()));
         services.AddSingleton<IRecordingRuntime, RecordingRuntime>();
         services.AddSingleton<IRecordingSession, RecordingSession>();
+        services.AddSingleton<IDeviceTopologyMonitor, PollingDeviceTopologyMonitor>();
 
         Services = services.BuildServiceProvider();
         _servicesConfigured = true;
