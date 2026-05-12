@@ -7,7 +7,8 @@ using NAudio.Wave;
 namespace ScreenRecorder.RecordingEngine.Audio;
 
 /// <summary>
-/// WASAPI loopback с выбранным устройством вывода → PCM-буферы (без ресэмплинга; целевая частота см. <see cref="RecordingAudioSpec.NominalSampleRateHz"/>).
+/// WASAPI loopback с выбранным устройством вывода → PCM-буферы; при частоте ≠ <see cref="RecordingAudioSpec.NominalSampleRateHz"/>
+/// применяется ресэмплинг к номиналу (выход IEEE float).
 /// </summary>
 /// <remarks>
 /// Пока на устройстве нет активного воспроизведения, драйвер часто не отдаёт кадры — это нормальное поведение loopback.
@@ -37,7 +38,9 @@ public sealed class LoopbackCaptureSession : IDisposable
     private readonly object _gate = new();
     private WasapiCapture? _capture;
     private ManualWasapiLoopbackCapture? _manualCapture;
-    private WaveFormat? _waveFormat;
+    private WaveFormat? _sourceWaveFormat;
+    private WaveFormat? _emittedWaveFormat;
+    private NominalSampleRatePcmConverter? _rateConverter;
 
     public LoopbackCaptureSession(ILogger<LoopbackCaptureSession>? logger = null)
     {
@@ -46,9 +49,9 @@ public sealed class LoopbackCaptureSession : IDisposable
 
     public event EventHandler<PcmCaptureDataAvailableEventArgs>? PcmDataAvailable;
 
-    /// <summary>Формат текущего потока после <see cref="Start"/>; после <see cref="Stop"/> — <c>null</c>.</summary>
+    /// <summary>Формат данных в <see cref="PcmDataAvailable"/> (после ресэмплинга — 48 kHz IEEE float при необходимости).</summary>
     /// <remarks>Чтение без <c>_gate</c>; см. замечание к аналогу на <see cref="MicrophoneCaptureSession"/>.</remarks>
-    public WaveFormat? RecordingWaveFormat => _waveFormat;
+    public WaveFormat? RecordingWaveFormat => _emittedWaveFormat;
 
     /// <remarks>Чтение без <c>_gate</c>; см. <see cref="MicrophoneCaptureSession.IsRecording"/>.</remarks>
     public bool IsRecording =>
@@ -163,13 +166,15 @@ public sealed class LoopbackCaptureSession : IDisposable
 
             manual.DataAvailable += OnLoopbackWaveInput;
             manual.RecordingStopped += OnRecordingStopped;
-            _waveFormat = manual.WaveFormat;
+            var deviceFormat = manual.WaveFormat;
+            AssignWaveFormatsForActiveCapture(deviceFormat);
             _logger?.LogInformation(
-                "Loopback capture (manual init): {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (nominal pipeline target {NominalHz} Hz)",
-                _waveFormat.SampleRate,
-                _waveFormat.Channels,
-                _waveFormat.Encoding,
-                RecordingAudioSpec.NominalSampleRateHz);
+                "Loopback capture (manual init): {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (emitted {EmittedRate} Hz{ResampleNote})",
+                deviceFormat.SampleRate,
+                deviceFormat.Channels,
+                deviceFormat.Encoding,
+                _emittedWaveFormat!.SampleRate,
+                _rateConverter is null ? string.Empty : ", resampled to nominal");
 
             _manualCapture = manual;
         }
@@ -229,13 +234,15 @@ public sealed class LoopbackCaptureSession : IDisposable
             capture.DataAvailable += OnLoopbackWaveInput;
             capture.RecordingStopped += OnRecordingStopped;
 
-            _waveFormat = capture.WaveFormat;
+            var deviceFormat = capture.WaveFormat;
+            AssignWaveFormatsForActiveCapture(deviceFormat);
             _logger?.LogInformation(
-                "Loopback capture: {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (nominal pipeline target {NominalHz} Hz)",
-                _waveFormat.SampleRate,
-                _waveFormat.Channels,
-                _waveFormat.Encoding,
-                RecordingAudioSpec.NominalSampleRateHz);
+                "Loopback capture: {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (emitted {EmittedRate} Hz{ResampleNote})",
+                deviceFormat.SampleRate,
+                deviceFormat.Channels,
+                deviceFormat.Encoding,
+                _emittedWaveFormat!.SampleRate,
+                _rateConverter is null ? string.Empty : ", resampled to nominal");
 
             _capture = capture;
         }
@@ -318,6 +325,14 @@ public sealed class LoopbackCaptureSession : IDisposable
             ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    private void AssignWaveFormatsForActiveCapture(WaveFormat deviceFormat)
+    {
+        _rateConverter?.Dispose();
+        _sourceWaveFormat = deviceFormat;
+        _rateConverter = NominalSampleRatePcmConverter.TryCreateIfNeeded(deviceFormat);
+        _emittedWaveFormat = _rateConverter?.OutputWaveFormat ?? deviceFormat;
+    }
+
     private void AbandonFailedStart(WasapiCapture capture)
     {
         lock (_gate)
@@ -329,7 +344,10 @@ public sealed class LoopbackCaptureSession : IDisposable
             capture.RecordingStopped -= OnRecordingStopped;
             capture.Dispose();
             _capture = null;
-            _waveFormat = null;
+            _sourceWaveFormat = null;
+            _emittedWaveFormat = null;
+            _rateConverter?.Dispose();
+            _rateConverter = null;
         }
     }
 
@@ -344,7 +362,10 @@ public sealed class LoopbackCaptureSession : IDisposable
             capture.RecordingStopped -= OnRecordingStopped;
             capture.Dispose();
             _manualCapture = null;
-            _waveFormat = null;
+            _sourceWaveFormat = null;
+            _emittedWaveFormat = null;
+            _rateConverter?.Dispose();
+            _rateConverter = null;
         }
     }
 
@@ -361,22 +382,40 @@ public sealed class LoopbackCaptureSession : IDisposable
         if (e is not WaveInEventArgs waveInArgs)
             return;
 
-        var fmt = _waveFormat;
+        var srcFmt = _sourceWaveFormat;
         var handler = PcmDataAvailable;
+        var converter = _rateConverter;
 
-        if (fmt is null || handler is null || waveInArgs.BytesRecorded <= 0)
+        if (srcFmt is null || handler is null || waveInArgs.BytesRecorded <= 0)
             return;
 
         var copy = new byte[waveInArgs.BytesRecorded];
         Array.Copy(waveInArgs.Buffer, copy, waveInArgs.BytesRecorded);
 
-        handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(copy, fmt));
+        if (converter is not null)
+        {
+            converter.Process(
+                copy,
+                (outBuf, outFmt) => handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(outBuf, outFmt)));
+        }
+        else
+        {
+            handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(copy, srcFmt));
+        }
     }
 
     public void Stop()
     {
+        EventHandler<PcmCaptureDataAvailableEventArgs>? handler;
+        NominalSampleRatePcmConverter? converter;
         lock (_gate)
         {
+            if (_capture is null && _manualCapture is null)
+                return;
+
+            handler = PcmDataAvailable;
+            converter = _rateConverter;
+
             if (_capture is not null)
             {
                 _capture.DataAvailable -= OnLoopbackWaveInput;
@@ -401,8 +440,13 @@ public sealed class LoopbackCaptureSession : IDisposable
                 _manualCapture = null;
             }
 
-            _waveFormat = null;
+            _sourceWaveFormat = null;
+            _emittedWaveFormat = null;
+            _rateConverter = null;
         }
+
+        converter?.Flush((outBuf, outFmt) => handler?.Invoke(this, new PcmCaptureDataAvailableEventArgs(outBuf, outFmt)));
+        converter?.Dispose();
     }
 
     public void Dispose() => Stop();

@@ -5,14 +5,17 @@ using NAudio.Wave;
 namespace ScreenRecorder.RecordingEngine.Audio;
 
 /// <summary>
-/// WASAPI capture в shared режиме → PCM буферы (без ресэмплинга; см. <see cref="RecordingAudioSpec.NominalSampleRateHz"/> для цели пайплайна).
+/// WASAPI capture в shared режиме → PCM буферы; при частоте ≠ <see cref="RecordingAudioSpec.NominalSampleRateHz"/>
+/// применяется ресэмплинг к номиналу (выход IEEE float).
 /// </summary>
 public sealed class MicrophoneCaptureSession : IDisposable
 {
     private readonly ILogger<MicrophoneCaptureSession>? _logger;
     private readonly object _gate = new();
     private WasapiCapture? _capture;
-    private WaveFormat? _waveFormat;
+    private WaveFormat? _sourceWaveFormat;
+    private WaveFormat? _emittedWaveFormat;
+    private NominalSampleRatePcmConverter? _rateConverter;
 
     public MicrophoneCaptureSession(ILogger<MicrophoneCaptureSession>? logger = null)
     {
@@ -21,9 +24,9 @@ public sealed class MicrophoneCaptureSession : IDisposable
 
     public event EventHandler<PcmCaptureDataAvailableEventArgs>? PcmDataAvailable;
 
-    /// <summary>Формат текущего потока; после <see cref="Stop"/> или до <see cref="Start"/> — <c>null</c>.</summary>
+    /// <summary>Формат данных в <see cref="PcmDataAvailable"/> (после ресэмплинга — 48 kHz IEEE float при необходимости).</summary>
     /// <remarks>Без <c>_gate</c>: иначе взаимная блокировка с <see cref="Start"/> при вызове из <see cref="PcmDataAvailable"/>.</remarks>
-    public WaveFormat? RecordingWaveFormat => _waveFormat;
+    public WaveFormat? RecordingWaveFormat => _emittedWaveFormat;
 
     /// <remarks>Без <c>_gate</c> по той же причине, что и <see cref="RecordingWaveFormat"/>.</remarks>
     public bool IsRecording => _capture is { CaptureState: CaptureState.Capturing };
@@ -53,13 +56,16 @@ public sealed class MicrophoneCaptureSession : IDisposable
             capture.DataAvailable += OnDataAvailable;
             capture.RecordingStopped += OnRecordingStopped;
 
-            _waveFormat = capture.WaveFormat;
+            _sourceWaveFormat = capture.WaveFormat;
+            _rateConverter = NominalSampleRatePcmConverter.TryCreateIfNeeded(_sourceWaveFormat);
+            _emittedWaveFormat = _rateConverter?.OutputWaveFormat ?? _sourceWaveFormat;
             _logger?.LogInformation(
-                "Microphone capture: {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (nominal pipeline target {NominalHz} Hz)",
-                _waveFormat.SampleRate,
-                _waveFormat.Channels,
-                _waveFormat.Encoding,
-                RecordingAudioSpec.NominalSampleRateHz);
+                "Microphone capture: {SampleRate} Hz, {Channels} channel(s), encoding {Encoding} (emitted {EmittedRate} Hz{ResampleNote})",
+                _sourceWaveFormat.SampleRate,
+                _sourceWaveFormat.Channels,
+                _sourceWaveFormat.Encoding,
+                _emittedWaveFormat.SampleRate,
+                _rateConverter is null ? string.Empty : ", resampled to nominal");
 
             _capture = capture;
         }
@@ -87,7 +93,10 @@ public sealed class MicrophoneCaptureSession : IDisposable
             capture.RecordingStopped -= OnRecordingStopped;
             capture.Dispose();
             _capture = null;
-            _waveFormat = null;
+            _sourceWaveFormat = null;
+            _emittedWaveFormat = null;
+            _rateConverter?.Dispose();
+            _rateConverter = null;
         }
     }
 
@@ -103,24 +112,39 @@ public sealed class MicrophoneCaptureSession : IDisposable
     /// </summary>
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
-        var fmt = _waveFormat;
+        var srcFmt = _sourceWaveFormat;
         var handler = PcmDataAvailable;
+        var converter = _rateConverter;
 
-        if (fmt is null || handler is null || e.BytesRecorded <= 0)
+        if (srcFmt is null || handler is null || e.BytesRecorded <= 0)
             return;
 
         var copy = new byte[e.BytesRecorded];
         Array.Copy(e.Buffer, copy, e.BytesRecorded);
 
-        handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(copy, fmt));
+        if (converter is not null)
+        {
+            converter.Process(
+                copy,
+                (outBuf, outFmt) => handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(outBuf, outFmt)));
+        }
+        else
+        {
+            handler.Invoke(this, new PcmCaptureDataAvailableEventArgs(copy, srcFmt));
+        }
     }
 
     public void Stop()
     {
+        EventHandler<PcmCaptureDataAvailableEventArgs>? handler;
+        NominalSampleRatePcmConverter? converter;
         lock (_gate)
         {
             if (_capture is null)
                 return;
+
+            handler = PcmDataAvailable;
+            converter = _rateConverter;
 
             _capture.DataAvailable -= OnDataAvailable;
             _capture.RecordingStopped -= OnRecordingStopped;
@@ -130,8 +154,13 @@ public sealed class MicrophoneCaptureSession : IDisposable
 
             _capture.Dispose();
             _capture = null;
-            _waveFormat = null;
+            _sourceWaveFormat = null;
+            _emittedWaveFormat = null;
+            _rateConverter = null;
         }
+
+        converter?.Flush((outBuf, outFmt) => handler?.Invoke(this, new PcmCaptureDataAvailableEventArgs(outBuf, outFmt)));
+        converter?.Dispose();
     }
 
     public void Dispose() => Stop();
