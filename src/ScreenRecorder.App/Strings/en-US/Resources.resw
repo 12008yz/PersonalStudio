@@ -39,6 +39,15 @@
   <data name="MainPage_LoopbackLabel.Text" xml:space="preserve">
     <value>System sound (playback device for capture)</value>
   </data>
+  <data name="MainPage_AcousticFeedbackNotice.Text" xml:space="preserve">
+    <value>Recording microphone and speakers at the same time can cause echo or howling feedback. Use headphones or a headset whenever possible, especially if you turn on monitoring below.</value>
+  </data>
+  <data name="MainPage_AudioMonitoringToggle.Header" xml:space="preserve">
+    <value>Play captured audio while recording (monitoring)</value>
+  </data>
+  <data name="MainPage_AudioMonitoringBlurb.Text" xml:space="preserve">
+    <value>Off by default to reduce feedback risk. When recording is implemented, this will route captured sound to your output device; keep levels low and use headphones. Automatic ducking of other apps is not planned for the first release.</value>
+  </data>
   <data name="AudioPicker_SystemDefault" xml:space="preserve">
     <value>System default</value>
   </data>

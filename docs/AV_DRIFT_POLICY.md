@@ -44,7 +44,7 @@
 
 ## 5. Аудио: ресэмплинг и очередь
 
-- **Целевое состояние:** весь PCM, попадающий в MF/AAC, проходит **выравнивание к 48 kHz** (пункт плана «Ресэмплинг к 48 kHz») в едином контуре, чтобы длительность аудио в секундах совпадала с числом переданных семплов после ресэмплера. **Сейчас в коде** захват отдаёт фактический формат устройства — до появления ресэмплера корректность длительности по семплам нужно учитывать отдельно при любых измерениях дрейфа.
+- **Целевое состояние:** весь PCM, попадающий в MF/AAC, проходит **выравнивание к 48 kHz** (пункт плана «Ресэмплинг к 48 kHz») в едином контуре, чтобы длительность аудио в секундах совпадала с числом переданных семплов после ресэмплера. **Сейчас в коде** `MicrophoneCaptureSession` и `LoopbackCaptureSession` при необходимости приводят поток к [`RecordingAudioSpec.NominalSampleRateHz`](../src/ScreenRecorder.RecordingEngine/RecordingAudioSpec.cs) через [`NominalSampleRatePcmConverter`](../src/ScreenRecorder.RecordingEngine/Audio/NominalSampleRatePcmConverter.cs); измерения дрейфа для mux всё равно должны опираться на **фактические** метки блоков и длительность в 100-ns, а не только на номинал частоты.
 - Небольшой **кольцевой буфер** между WASAPI и энкодером допускается для сглаживания джиттера; политика переполнения — **сигнал/лог** и контролируемая деградация, а не бесконечное накопление.
 
 ---
@@ -72,4 +72,4 @@
 
 - [`COM_AND_THREADING.md`](COM_AND_THREADING.md) — где выполнять MF и очередь энкодера.
 - `MonitorFrameCaptureSession` — QPC и `SystemRelativeTime` у кадра.
-- `MicAndLoopbackCaptureSession` / WASAPI — источники PCM до ресэмплера.
+- `MicAndLoopbackCaptureSession` / WASAPI — два источника PCM; перед подачей в MF их нужно **свести в одну стерео AAC-LC дорожку** по [`RecordingAudioSpec.MvpMp4AudioTrackLayout`](../src/ScreenRecorder.RecordingEngine/RecordingAudioSpec.cs); события `PcmDataAvailable` приходят уже после ресэмплинга внутри дочерних сессий (к номиналу 48 kHz), если устройство отличалось.

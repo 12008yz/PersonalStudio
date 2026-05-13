@@ -30,6 +30,7 @@ internal static class AppSettingsSanitizer
             LastOutputDirectory = dir,
             PreferredMicrophoneEndpointId = SanitizeEndpointId(input.PreferredMicrophoneEndpointId),
             PreferredLoopbackRenderEndpointId = SanitizeEndpointId(input.PreferredLoopbackRenderEndpointId),
+            AudioPassthroughMonitoringEnabled = input.AudioPassthroughMonitoringEnabled,
         };
     }
 

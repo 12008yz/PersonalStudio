@@ -21,17 +21,19 @@
 - **Контейнер:** MP4 (расширение `.mp4`).
 - **Видео:** H.264 (AVC).
 - **Аудио:** AAC-LC.
+- **Дорожки звука в MVP:** в одном MP4 **одна** стерео AAC-LC дорожка — **микс** системного звука (loopback) и микрофона в движке; отдельные дорожки «система / микрофон» запланированы как возможная **v1.1** (`RecordingAudioSpec.MvpMp4AudioTrackLayout` / `Mp4AudioTrackLayout`).
 - **Без FFmpeg:** в поставку не входят бинарники FFmpeg и не используется внешний `ffmpeg.exe`; mux/encode — Windows **Media Foundation**, как в плане.
 
-Единая точка в коде: `ScreenRecorder.RecordingEngine.RecordingOutputFormat`.
+Единая точка в коде: `ScreenRecorder.RecordingEngine.RecordingOutputFormat`, политика аудиодорожек — `RecordingAudioSpec`.
 
 ## Источники записи (зафиксировано для MVP)
 
 - **Видео:** один **выбранный монитор целиком** (`Windows.Graphics.Capture`). Произвольная область экрана — запланировано **после MVP**.
 - **Системный звук:** WASAPI **loopback**.
 - **Микрофон:** WASAPI **capture** (устройство по умолчанию или выбор в настройках).
+- **Акустика:** одновременный захват микрофона и звука с колонок может дать эхо или свист обратной связи — в UI есть предупреждение; **мониторинг** (воспроизведение захваченного звука во время записи) по умолчанию **выключен** и хранится в `AppSettings.AudioPassthroughMonitoringEnabled`. Автоматическое приглушение других приложений (ducking) в MVP **не** планируется — `RecordingAcousticUxSpec`.
 
-В коде: `ScreenRecorder.RecordingEngine.RecordingSourcesSpec`.
+В коде: источники — `ScreenRecorder.RecordingEngine.RecordingSourcesSpec`; акустика и флаг мониторинга — `RecordingAcousticUxSpec`, `ScreenRecorder.RecordingEngine.Settings.AppSettings`.
 
 ## Нефункциональные требования (v1)
 

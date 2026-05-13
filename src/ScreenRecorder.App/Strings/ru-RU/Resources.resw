@@ -39,6 +39,15 @@
   <data name="MainPage_LoopbackLabel.Text" xml:space="preserve">
     <value>Системный звук (устройство воспроизведения для записи)</value>
   </data>
+  <data name="MainPage_AcousticFeedbackNotice.Text" xml:space="preserve">
+    <value>Одновременная запись микрофона и звука с колонок часто даёт эхо или свист обратной связи. По возможности используйте наушники или гарнитуру, особенно если включить мониторинг ниже.</value>
+  </data>
+  <data name="MainPage_AudioMonitoringToggle.Header" xml:space="preserve">
+    <value>Воспроизводить захваченный звук во время записи (мониторинг)</value>
+  </data>
+  <data name="MainPage_AudioMonitoringBlurb.Text" xml:space="preserve">
+    <value>По умолчанию выключено, чтобы снизить риск акустической петли. Когда запись будет реализована, опция будет выводить захваченный звук на выбранное устройство воспроизведения; держите громкость умеренной и используйте наушники. Автоматическое приглушение (ducking) других приложений в первой версии не планируется.</value>
+  </data>
   <data name="AudioPicker_SystemDefault" xml:space="preserve">
     <value>По умолчанию системы</value>
   </data>

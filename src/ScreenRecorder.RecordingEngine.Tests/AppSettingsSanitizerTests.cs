@@ -1,3 +1,4 @@
+using ScreenRecorder.RecordingEngine;
 using ScreenRecorder.RecordingEngine.Settings;
 
 namespace ScreenRecorder.RecordingEngine.Tests;
@@ -28,5 +29,24 @@ public sealed class AppSettingsSanitizerTests
         var input = new AppSettings { PreferredMicrophoneEndpointId = @"{GUID}" };
         var sanitized = AppSettingsSanitizer.Sanitize(input);
         Assert.AreEqual(@"{GUID}", sanitized.PreferredMicrophoneEndpointId);
+    }
+
+    [TestMethod]
+    public void AppSettingsDefault_MatchesAcousticUxSpecMonitoringDefault()
+    {
+        Assert.AreEqual(
+            RecordingAcousticUxSpec.AudioPassthroughMonitoringDefaultEnabled,
+            AppSettings.Default.AudioPassthroughMonitoringEnabled);
+        Assert.IsFalse(RecordingAcousticUxSpec.AudioDuckingInMvp);
+    }
+
+    [TestMethod]
+    public void Sanitize_PreservesAudioPassthroughMonitoringEnabled()
+    {
+        var on = AppSettingsSanitizer.Sanitize(new AppSettings { AudioPassthroughMonitoringEnabled = true });
+        Assert.IsTrue(on.AudioPassthroughMonitoringEnabled);
+
+        var off = AppSettingsSanitizer.Sanitize(new AppSettings());
+        Assert.IsFalse(off.AudioPassthroughMonitoringEnabled);
     }
 }

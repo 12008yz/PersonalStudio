@@ -60,6 +60,21 @@
                 DisplayMemberPath="DisplayLabel"
                 SelectionChanged="AudioDeviceCombo_SelectionChanged" />
             <TextBlock
+                x:Uid="MainPage_AcousticFeedbackNotice"
+                Margin="0,8,0,0"
+                TextWrapping="WrapWholeWords"
+                Opacity="0.92" />
+            <ToggleSwitch
+                x:Name="AudioMonitoringToggle"
+                x:Uid="MainPage_AudioMonitoringToggle"
+                Margin="0,4,0,0"
+                HorizontalAlignment="Left"
+                Toggled="AudioMonitoringToggle_Toggled" />
+            <TextBlock
+                x:Uid="MainPage_AudioMonitoringBlurb"
+                TextWrapping="WrapWholeWords"
+                Opacity="0.82" />
+            <TextBlock
                 x:Uid="MainPage_DualAudioHint"
                 Margin="0,4,0,0"
                 TextWrapping="WrapWholeWords"

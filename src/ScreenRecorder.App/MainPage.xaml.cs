@@ -25,6 +25,7 @@ public sealed partial class MainPage : Page
     private IAppSettingsStore? _settingsStore;
     private AppSettings? _currentSettings;
     private bool _audioPickersBusy;
+    private bool _syncingAudioMonitoringToggle;
 
     public MainPage()
     {
@@ -88,6 +89,8 @@ public sealed partial class MainPage : Page
             }
 
             _currentSettings ??= settings;
+
+            SyncAudioMonitoringToggleFromSettings();
 
             var path = ScreenRecorder.RecordingEngine.ApplicationIdentity.DefaultSettingsFilePath;
             logger.LogInformation("Settings ready at {Path}", path);
@@ -192,6 +195,43 @@ public sealed partial class MainPage : Page
         finally
         {
             _audioPickersBusy = false;
+        }
+    }
+
+    private void SyncAudioMonitoringToggleFromSettings()
+    {
+        if (_currentSettings is null)
+            return;
+
+        _syncingAudioMonitoringToggle = true;
+        try
+        {
+            AudioMonitoringToggle.IsOn = _currentSettings.AudioPassthroughMonitoringEnabled;
+        }
+        finally
+        {
+            _syncingAudioMonitoringToggle = false;
+        }
+    }
+
+    private async void AudioMonitoringToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingAudioMonitoringToggle || _settingsStore is null || _currentSettings is null)
+            return;
+
+        var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
+        var enabled = AudioMonitoringToggle.IsOn;
+
+        try
+        {
+            var next = _currentSettings with { AudioPassthroughMonitoringEnabled = enabled };
+            await _settingsStore.SaveAsync(next).ConfigureAwait(true);
+            _currentSettings = next;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Saving audio monitoring preference failed");
+            SyncAudioMonitoringToggleFromSettings();
         }
     }
 

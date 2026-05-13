@@ -17,5 +17,11 @@ public sealed record AppSettings
     /// </summary>
     public string? PreferredLoopbackRenderEndpointId { get; init; }
 
+    /// <summary>
+    /// Воспроизводить захваченный звук на динамики или в наушники во время записи (мониторинг). По умолчанию выключено из‑за риска
+    /// акустической обратной связи при одновременном loopback и микрофоне без наушников. Учитывается движком записи (фаза E+).
+    /// </summary>
+    public bool AudioPassthroughMonitoringEnabled { get; init; }
+
     public static AppSettings Default => new();
 }

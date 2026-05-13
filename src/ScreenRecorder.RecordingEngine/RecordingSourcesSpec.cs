@@ -2,6 +2,7 @@ namespace ScreenRecorder.RecordingEngine;
 
 /// <summary>
 /// Какие источники входят в продукт и что именно в MVP. Технологии — по плану: <c>Windows.Graphics.Capture</c> для видео, WASAPI для аудио.
+/// Укладка звука в файл — <see cref="RecordingAudioSpec.MvpMp4AudioTrackLayout"/> (MVP: одна смешанная AAC-LC дорожка).
 /// </summary>
 public static class RecordingSourcesSpec
 {

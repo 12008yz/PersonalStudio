@@ -11,7 +11,7 @@ public static class RecordingOutputFormat
     /// <summary>Видеодорожка: H.264 (AVC) в MP4.</summary>
     public const string VideoCodecLabel = "H.264";
 
-    /// <summary>Аудиодорожка: AAC (LC) в MP4.</summary>
+    /// <summary>Аудиокодек в MP4: AAC (LC). Сколько дорожек и как смешиваются loopback и микрофон — <see cref="RecordingAudioSpec.MvpMp4AudioTrackLayout"/>.</summary>
     public const string AudioCodecLabel = "AAC-LC";
 
     /// <summary>Явная политика поставки: в релиз не входят бинарники FFmpeg и зависимости, тянущие внешний FFmpeg.</summary>

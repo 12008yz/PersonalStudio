@@ -10,7 +10,7 @@
 
 **Цель (зафиксировано 2026-05-10):** десктопное приложение для Windows — по опыту проще типичного «тяжёлого» рекордера в духе Bandicam, но без упрощения до «игрушки»: приоритет — **стабильный выходной MP4** и **понятные пользователю ошибки** (права, устройства, кодеки, DRM), а не максимум настроек на первом экране.
 
-**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingNfrSpec`, спайки MF — [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) и [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md), шаблон матрицы железа — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md), **COM/потоки и MF** — [docs/COM_AND_THREADING.md](docs/COM_AND_THREADING.md), **дрейф A/V на длинных сессиях** — [docs/AV_DRIFT_POLICY.md](docs/AV_DRIFT_POLICY.md), **ручной DPI-регресс (125% / 150%)** — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md); каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
+**В репозитории:** цель, платформа, формат выхода, источники, локализация, НФТ и **краткое предупреждение о записи (закон/этика)** — в [README.md](README.md), строки UI в `src/ScreenRecorder.App/Strings/`, спеки в `RecordingOutputFormat` / `RecordingSourcesSpec` / `RecordingAudioSpec` / `RecordingAcousticUxSpec` / `RecordingNfrSpec`, спайки MF — [`ScreenRecorder.MfSpike`](src/ScreenRecorder.MfSpike/README.md) и [`ScreenRecorder.VariantBSpike`](src/ScreenRecorder.VariantBSpike/README.md), шаблон матрицы железа — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md), **COM/потоки и MF** — [docs/COM_AND_THREADING.md](docs/COM_AND_THREADING.md), **дрейф A/V на длинных сессиях** — [docs/AV_DRIFT_POLICY.md](docs/AV_DRIFT_POLICY.md), **ручной DPI-регресс (125% / 150%)** — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md); каркас `ScreenRecorder.slnx`, `src/ScreenRecorder.App` (WinUI 3).
 
 - [x] Зафиксировать цель: десктоп «проще Bandicam», но полноценный (стабильный MP4, понятные ошибки).
 - [x] ОС: Windows 10 22H2+ и Windows 11 (x64).
@@ -18,7 +18,7 @@
 
 **Формат выхода (зафиксировано):** MP4, видео **H.264**, аудио **AAC-LC**; кодирование/mux — **Media Foundation**, без FFmpeg в поставке. См. `RecordingOutputFormat` в `ScreenRecorder.RecordingEngine` и раздел в [README.md](README.md).
 
-- [x] Источники: экран (монитор целиком или область — выбрать для MVP), loopback, микрофон.
+- [x] Источники: экран (**MVP — монитор целиком**; произвольная область — после MVP), loopback, микрофон.
 
 **Источники (зафиксировано для MVP):** видео — **один монитор целиком** (не произвольная область); **системный звук** — WASAPI loopback; **микрофон** — WASAPI. Область экрана и мульти-мониторные сценарии сверх «один выбранный монитор» — после MVP, см. `RecordingSourcesSpec`.
 
@@ -72,7 +72,7 @@
 - [x] Слой UI — только команды, настройки, состояние; без тяжёлых циклов на UI-потоке. _(каркас; тяжёлых циклов нет.)_
 - [x] `RecordingSession` / Orchestrator — единственный дирижёр: Start/Stop, смена устройств.
 - [x] Видеопайплайн — кадры с монотонных часов (QPC) и метки времени. _(в `MonitorFrameCaptureSession`: QPC + `SystemRelativeTime`; без очереди под энкодер — фаза D.)_
-- [x] Аудиопайплайн — loopback + mic → единый PCM-контракт (или две дорожки в MF — решение зафиксировать в спеке). _(контракт `SourcedPcmCaptureDataAvailableEventArgs` + `PcmCaptureSourceKind`; агрегирующее событие `MicAndLoopbackCaptureSession.PcmDataAvailable`.)_
+- [x] Аудиопайплайн — loopback + mic → раздельные PCM-потоки с общим контрактом; **в MP4 для MVP** — одна смешанная AAC-LC дорожка (`RecordingAudioSpec.MvpMp4AudioTrackLayout`). _(контракт `SourcedPcmCaptureDataAvailableEventArgs` + `PcmCaptureSourceKind`; агрегирующее событие `MicAndLoopbackCaptureSession.PcmDataAvailable`; две отдельные AAC-дорожки — только `Mp4AudioTrackLayout.DualSeparateSystemAndMicrophoneAacLc`, v1.1.)_
 - [x] Encoder/Muxer (MF) — отдельный поток/очередь с **ограничением размера** (backpressure). _(инфраструктура: `BoundedEncoderWorkQueue<TWorkItem>` в `MediaFoundation`.)_
 - [x] Device layer — мониторы, аудиоустройства, «устройство отключили». _(добавлен `IDeviceTopologyMonitor`/`PollingDeviceTopologyMonitor`: снапшоты мониторов + capture/render endpoints, детекция removal/default-change через событие `TopologyChanged`.)_
 - [x] **COM/потоки:** явно описать, какие потоки MTA/STA, где `CoInitializeEx`, где живёт SinkWriter; не вызывать MF с UI-потока. _(см. [docs/COM_AND_THREADING.md](docs/COM_AND_THREADING.md).)_
@@ -111,8 +111,8 @@
 - [x] Микрофон: WASAPI shared → PCM; формат (частота, каналы). _(см. `MicrophoneCaptureSession` + `RecordingAudioSpec.NominalSampleRateHz`; фактический формат — от shared-микшера, целевая 48 kHz — следующий пункт ресэмплинга.)_
 - [x] Системный звук: WASAPI loopback. _(см. `LoopbackCaptureSession`, `RenderEndpointMmDevice`; буферы только при активном воспроизведении на выбранном выводе.)_
 - [x] Ресэмплинг к 48 kHz (или одна выбранная частота на весь проект).
-- [ ] **Продуктовое решение:** одна микшированная дорожка **или** две AAC-дорожки в MP4 (v1 vs v1.1 — зафиксировать).
-- [ ] **Акустика:** риск гула без наушников; подсказка в UI; мониторинг выкл по умолчанию; опционально ducking.
+- [x] **Продуктовое решение:** одна микшированная дорожка **или** две AAC-дорожки в MP4 (v1 vs v1.1 — зафиксировать). _(MVP / v1: **одна** смешанная стерео AAC-LC — `RecordingAudioSpec.MvpMp4AudioTrackLayout` = `SingleMixedStereoAacLc`; две дорожки — `DualSeparateSystemAndMicrophoneAacLc`, возможная v1.1; README + `RecordingOutputFormat`.)_
+- [x] **Акустика:** риск гула без наушников; подсказка в UI; мониторинг выкл по умолчанию; опционально ducking. _(блок предупреждения + переключатель «мониторинг» на `MainPage`, `AppSettings.AudioPassthroughMonitoringEnabled` по умолчанию false; `RecordingAcousticUxSpec` — ducking не в MVP; воспроизведение в динамики при записи — фаза E.)_
 - [ ] **Смена default audio** во время записи: политика (переподключение / стоп / ошибка).
 - [ ] Тест: 2 мин (например YouTube + голос), клиппинг, рассинхрон.
 - [ ] **Готово:** временные WAV-дампы звучат корректно до видеокодека.
@@ -173,11 +173,11 @@
 
 ## Критерии «план выполнен» для v1
 
-- [ ] Стабильная запись экрана + loopback + mic в один MP4 (или две аудиодорожки — если так зафиксировано).
+- [ ] Стабильная запись экрана + loopback + mic в один MP4 (**v1:** одна смешанная AAC-LC дорожка; две дорожки — v1.1).
 - [ ] Нет FFmpeg в релизной поставке.
 - [ ] Документированы ограничения: DRM, смена аудио, длинные записи и дрейф, гибридная графика.
 - [ ] Установщик + подпись (если цель — распространение).
 
 ---
 
-_Файл создан как единый to-do по обсуждённому плану и его доработкам. Редактируй секции под свой MVP (один монитор vs область, микс vs две дорожки)._
+_Файл создан как единый to-do по обсуждённому плану и его доработкам. Редактируй секции под свой MVP (один монитор vs область; для звука в v1 зафиксирован **микс** в одну AAC-LC дорожку — см. `RecordingAudioSpec`, отдельные дорожки — v1.1)._

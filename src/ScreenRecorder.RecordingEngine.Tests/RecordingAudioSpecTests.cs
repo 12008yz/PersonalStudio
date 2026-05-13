@@ -8,4 +8,10 @@ public sealed class RecordingAudioSpecTests
     {
         Assert.AreEqual(48_000, RecordingAudioSpec.NominalSampleRateHz);
     }
+
+    [TestMethod]
+    public void MvpMp4AudioTrackLayout_IsSingleMixedStereoAacLc()
+    {
+        Assert.AreEqual(Mp4AudioTrackLayout.SingleMixedStereoAacLc, RecordingAudioSpec.MvpMp4AudioTrackLayout);
+    }
 }

@@ -5,6 +5,7 @@ namespace ScreenRecorder.RecordingEngine.Audio;
 /// <summary>
 /// Одновременный захват голоса (микрофон) и смеси вывода (WASAPI loopback на выбранном рендер-устройстве).
 /// Сценарий продукта: голос одновременно со звуком YouTube/игры с того же ПК без отдельного захвата по приложениям.
+/// В MP4 для MVP смешивание в одну стерео AAC-LC дорожку — в движке MF (<see cref="RecordingAudioSpec.MvpMp4AudioTrackLayout"/>); здесь только раздельные PCM-потоки с меткой источника.
 /// </summary>
 public sealed class MicAndLoopbackCaptureSession : IDisposable
 {
