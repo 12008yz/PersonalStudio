@@ -84,6 +84,11 @@
                 x:Uid="MainPage_DualAudioTestButton"
                 HorizontalAlignment="Left"
                 Click="DualAudioTestButton_Click" />
+            <Button
+                x:Name="DualAudioTest2MinButton"
+                x:Uid="MainPage_DualAudioTest2MinButton"
+                HorizontalAlignment="Left"
+                Click="DualAudioTest2MinButton_Click" />
 
             <TextBlock
                 x:Uid="MainPage_ActivityLogHeader"

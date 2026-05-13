@@ -105,6 +105,9 @@
   <data name="MainPage_DualAudioTestButton.Content" xml:space="preserve">
     <value>Проверить микрофон + системный звук (10 с)</value>
   </data>
+  <data name="MainPage_DualAudioTest2MinButton.Content" xml:space="preserve">
+    <value>Проверить микрофон + системный звук (2 мин)</value>
+  </data>
   <data name="MainPage_DualAudioHint.Text" xml:space="preserve">
     <value>Используются устройства из списков выше. Голос — с микрофона; звук игры и браузера (например YouTube) — с выбранного вывода: во время теста должно что-то играть. Наушники уменьшают эхо от колонок.</value>
   </data>
@@ -112,7 +115,16 @@
     <value>Настройки ещё не готовы; дождитесь окончания загрузки приложения.</value>
   </data>
   <data name="DualAudioTest_Started" xml:space="preserve">
-    <value>Тест двух каналов (микрофон + loopback), 10 секунд…</value>
+    <value>Тест двух каналов (микрофон + loopback), {0} с…</value>
+  </data>
+  <data name="DualAudioTest_Progress" xml:space="preserve">
+    <value>Тест двух каналов: прошло {0} с…</value>
+  </data>
+  <data name="DualAudioTest_ResultClipping" xml:space="preserve">
+    <value>Сэмплы IEEE float с |U| ≥ 1.0 — микрофон: {0:N0}, loopback: {1:N0}. (Большие числа могут указывать на перегруз или лимитер на пути сигнала.)</value>
+  </data>
+  <data name="DualAudioTest_ResultStreamDelta" xml:space="preserve">
+    <value>Оценка длительности PCM — микрофон: {0:F2} с, loopback: {1:F2} с (разница {2:F0} мс). Это сравнение сырых потоков до mux в MP4; итоговая A/V синхронизация — фаза D.</value>
   </data>
   <data name="DualAudioTest_DevicesInUse" xml:space="preserve">
     <value>Устройства этого теста — микрофон: {0}; вывод (loopback): {1}.</value>

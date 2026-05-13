@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.ApplicationModel.Resources;
+using NAudio.Wave;
 using ScreenRecorder.RecordingEngine;
 using ScreenRecorder.RecordingEngine.Audio;
 using ScreenRecorder.RecordingEngine.Capture;
@@ -394,18 +395,40 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private async void DualAudioTestButton_Click(object sender, RoutedEventArgs e)
+    private async void DualAudioTestButton_Click(object sender, RoutedEventArgs e) =>
+        await RunDualAudioTestAsync(10).ConfigureAwait(true);
+
+    private async void DualAudioTest2MinButton_Click(object sender, RoutedEventArgs e) =>
+        await RunDualAudioTestAsync(120).ConfigureAwait(true);
+
+    /// <summary>
+    /// Одновременный захват микрофона и loopback; для длительности ≥ 60 с — сообщения каждые 30 с в лог активности.
+    /// Считает байты, грубый индикатор клиппинга по IEEE float (|U| ≥ 1) и оценку разницы длительностей PCM.
+    /// </summary>
+    private async Task RunDualAudioTestAsync(int durationSeconds)
     {
+        if (durationSeconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Duration must be positive.");
+
         var activityLog = App.Services.GetRequiredService<ActivityLog>();
         var logger = App.Services.GetRequiredService<ILogger<MainPage>>();
         var loader = new ResourceLoader();
+        var culture = CultureInfo.CurrentCulture;
 
         void AppendUiLine(string line)
         {
             _ = DispatcherQueue.TryEnqueue(() => activityLog.Entries.Add($"[{DateTime.Now:HH:mm:ss}] {line}"));
         }
 
-        DualAudioTestButton.IsEnabled = false;
+        var progressEverySeconds = durationSeconds >= 60 ? 30 : 0;
+
+        void SetDualAudioButtonsEnabled(bool enabled)
+        {
+            DualAudioTestButton.IsEnabled = enabled;
+            DualAudioTest2MinButton.IsEnabled = enabled;
+        }
+
+        SetDualAudioButtonsEnabled(false);
         try
         {
             if (_currentSettings is null)
@@ -421,33 +444,60 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            AppendUiLine(loader.GetString("DualAudioTest_Started") ?? string.Empty);
+            var startedFmt = loader.GetString("DualAudioTest_Started") ?? "{0}";
+            AppendUiLine(string.Format(culture, startedFmt, durationSeconds));
 
             var devicesFmt = loader.GetString("DualAudioTest_DevicesInUse");
             if (!string.IsNullOrEmpty(devicesFmt))
             {
                 AppendUiLine(string.Format(
-                    CultureInfo.CurrentCulture,
+                    culture,
                     devicesFmt,
                     micPick.DisplayLabel,
                     loopPick.DisplayLabel));
             }
 
-            long micBytes = 0;
-            long loopBytes = 0;
+            long micBytes;
+            long loopBytes;
+            long micClips;
+            long loopClips;
+            micBytes = 0;
+            loopBytes = 0;
+            micClips = 0;
+            loopClips = 0;
+            WaveFormat? micFmt = null;
+            WaveFormat? loopFmt = null;
+            var fmtLock = new object();
 
             using var duo = new MicAndLoopbackCaptureSession(
                 App.Services.GetService<ILogger<MicrophoneCaptureSession>>(),
                 App.Services.GetService<ILogger<LoopbackCaptureSession>>());
 
-            void OnMicPcm(object? _, PcmCaptureDataAvailableEventArgs e) =>
-                Interlocked.Add(ref micBytes, e.PcmSamples.Length);
+            void OnSourcedPcm(object? _, SourcedPcmCaptureDataAvailableEventArgs e)
+            {
+                var n = e.PcmSamples.Length;
+                var c = PcmIeeeFloatDiagnostics.CountAtOrBeyondFullScale(e.PcmSamples, e.WaveFormat);
+                if (e.SourceKind == PcmCaptureSourceKind.Microphone)
+                {
+                    Interlocked.Add(ref micBytes, n);
+                    Interlocked.Add(ref micClips, c);
+                    lock (fmtLock)
+                    {
+                        micFmt ??= e.WaveFormat;
+                    }
+                }
+                else if (e.SourceKind == PcmCaptureSourceKind.Loopback)
+                {
+                    Interlocked.Add(ref loopBytes, n);
+                    Interlocked.Add(ref loopClips, c);
+                    lock (fmtLock)
+                    {
+                        loopFmt ??= e.WaveFormat;
+                    }
+                }
+            }
 
-            void OnLoopPcm(object? _, PcmCaptureDataAvailableEventArgs e) =>
-                Interlocked.Add(ref loopBytes, e.PcmSamples.Length);
-
-            duo.Microphone.PcmDataAvailable += OnMicPcm;
-            duo.Loopback.PcmDataAvailable += OnLoopPcm;
+            duo.PcmDataAvailable += OnSourcedPcm;
 
             try
             {
@@ -458,35 +508,72 @@ public sealed partial class MainPage : Page
                 catch (InvalidOperationException ex)
                 {
                     var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
-                    AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+                    AppendUiLine(string.Format(culture, errFmt, ex.Message));
                     return;
                 }
                 catch (ArgumentException ex)
                 {
                     var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
-                    AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+                    AppendUiLine(string.Format(culture, errFmt, ex.Message));
                     return;
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+                for (var sec = 1; sec <= durationSeconds; sec++)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
+                    if (progressEverySeconds > 0 &&
+                        sec % progressEverySeconds == 0 &&
+                        sec < durationSeconds)
+                    {
+                        var progressFmt = loader.GetString("DualAudioTest_Progress");
+                        if (!string.IsNullOrEmpty(progressFmt))
+                            AppendUiLine(string.Format(culture, progressFmt, sec));
+                    }
+                }
 
                 duo.Stop();
 
-                var resultFmt = loader.GetString("DualAudioTest_Result") ?? "{0} {1}";
-                AppendUiLine(string.Format(
-                    CultureInfo.CurrentCulture,
-                    resultFmt,
-                    Interlocked.Read(ref micBytes),
-                    Interlocked.Read(ref loopBytes)));
+                var mB = Interlocked.Read(ref micBytes);
+                var lB = Interlocked.Read(ref loopBytes);
+                var mC = Interlocked.Read(ref micClips);
+                var lC = Interlocked.Read(ref loopClips);
 
-                if (Interlocked.Read(ref loopBytes) == 0)
+                var resultFmt = loader.GetString("DualAudioTest_Result") ?? "{0} {1}";
+                AppendUiLine(string.Format(culture, resultFmt, mB, lB));
+
+                var clipFmt = loader.GetString("DualAudioTest_ResultClipping");
+                if (!string.IsNullOrEmpty(clipFmt))
+                    AppendUiLine(string.Format(culture, clipFmt, mC, lC));
+
+                WaveFormat? mf;
+                WaveFormat? lf;
+                lock (fmtLock)
+                {
+                    mf = micFmt;
+                    lf = loopFmt;
+                }
+
+                if (mf is not null && lf is not null && mB > 0 && lB > 0)
+                {
+                    var micSec = PcmIeeeFloatDiagnostics.ApproximateDurationSeconds(mB, mf);
+                    var loopSec = PcmIeeeFloatDiagnostics.ApproximateDurationSeconds(lB, lf);
+                    if (double.IsFinite(micSec) && double.IsFinite(loopSec))
+                    {
+                        var deltaMs = Math.Abs(micSec - loopSec) * 1000d;
+                        var deltaFmt = loader.GetString("DualAudioTest_ResultStreamDelta");
+                        if (!string.IsNullOrEmpty(deltaFmt))
+                            AppendUiLine(string.Format(culture, deltaFmt, micSec, loopSec, deltaMs));
+                    }
+                }
+
+                if (lB == 0)
                 {
                     var note = loader.GetString("DualAudioTest_LoopbackZeroNote");
                     if (!string.IsNullOrEmpty(note))
                         AppendUiLine(note);
                 }
 
-                if (Interlocked.Read(ref micBytes) == 0)
+                if (mB == 0)
                 {
                     AppendUiLine(
                         loader.GetString("DualAudioTest_MicZeroNote")
@@ -495,19 +582,18 @@ public sealed partial class MainPage : Page
             }
             finally
             {
-                duo.Microphone.PcmDataAvailable -= OnMicPcm;
-                duo.Loopback.PcmDataAvailable -= OnLoopPcm;
+                duo.PcmDataAvailable -= OnSourcedPcm;
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Dual-audio test failed");
             var errFmt = loader.GetString("DualAudioTest_Error") ?? "{0}";
-            AppendUiLine(string.Format(CultureInfo.CurrentCulture, errFmt, ex.Message));
+            AppendUiLine(string.Format(culture, errFmt, ex.Message));
         }
         finally
         {
-            DualAudioTestButton.IsEnabled = true;
+            SetDualAudioButtonsEnabled(true);
         }
     }
 }

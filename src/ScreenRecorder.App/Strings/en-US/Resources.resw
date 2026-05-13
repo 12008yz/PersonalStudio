@@ -105,6 +105,9 @@
   <data name="MainPage_DualAudioTestButton.Content" xml:space="preserve">
     <value>Test microphone + system sound (10 s)</value>
   </data>
+  <data name="MainPage_DualAudioTest2MinButton.Content" xml:space="preserve">
+    <value>Test microphone + system sound (2 min)</value>
+  </data>
   <data name="MainPage_DualAudioHint.Text" xml:space="preserve">
     <value>Uses the devices selected above. Your voice is captured from the microphone; game and browser audio (e.g. YouTube) are captured from the system output you pick — play sound during the test. Headphones reduce echo from speakers.</value>
   </data>
@@ -112,7 +115,16 @@
     <value>Settings are not ready yet; wait for the app to finish loading.</value>
   </data>
   <data name="DualAudioTest_Started" xml:space="preserve">
-    <value>Dual-audio test running for 10 seconds (mic + loopback)…</value>
+    <value>Dual-audio test running for {0} seconds (mic + loopback)…</value>
+  </data>
+  <data name="DualAudioTest_Progress" xml:space="preserve">
+    <value>Dual-audio test: {0} s elapsed…</value>
+  </data>
+  <data name="DualAudioTest_ResultClipping" xml:space="preserve">
+    <value>IEEE float samples at or beyond ±1.0 — microphone: {0:N0}, loopback: {1:N0}. (High counts may indicate clipping or limiting upstream.)</value>
+  </data>
+  <data name="DualAudioTest_ResultStreamDelta" xml:space="preserve">
+    <value>Approximate PCM duration — microphone: {0:F2} s, loopback: {1:F2} s (difference {2:F0} ms). This compares raw PCM before MP4 mux; final A/V sync is validated in phase D.</value>
   </data>
   <data name="DualAudioTest_DevicesInUse" xml:space="preserve">
     <value>Selected for this test — microphone: {0}; system output (loopback): {1}.</value>
