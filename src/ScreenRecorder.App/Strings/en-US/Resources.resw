@@ -141,4 +141,16 @@
   <data name="DualAudioTest_Error" xml:space="preserve">
     <value>Dual-audio test failed: {0}</value>
   </data>
+  <data name="DualAudioTest_WavDumpMic" xml:space="preserve">
+    <value>Temporary microphone WAV (play in any media app to verify sound before video encode): {0}</value>
+  </data>
+  <data name="DualAudioTest_WavDumpLoopback" xml:space="preserve">
+    <value>Temporary system sound (loopback) WAV: {0}</value>
+  </data>
+  <data name="DualAudioTest_WavDumpMicSkipped" xml:space="preserve">
+    <value>No microphone WAV file — no PCM was captured.</value>
+  </data>
+  <data name="DualAudioTest_WavDumpLoopbackSkipped" xml:space="preserve">
+    <value>No loopback WAV file — no PCM was captured (silent output or wrong device).</value>
+  </data>
 </root>

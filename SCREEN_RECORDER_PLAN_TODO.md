@@ -1,6 +1,9 @@
 # План: запись экрана + системный звук + микрофон (без FFmpeg)
 
 проверь всё за собой ещё раз. что бы не было ошибок или несостыковок в логике.
+
+привет. прочитай файл C:\progect\games\SCREEN_RECORDER_PLAN_TODO.md и давай выполнять следующий пункт плана
+
 Чеклист по фазам, лучшие практики
 и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
 
@@ -98,7 +101,7 @@
 - [x] `GraphicsCaptureSession` + Direct3D11 interop: стабильный поток кадров + timestamp.
 - [x] Debug: FPS и учёт «пустых» кадров (`FrameCaptureMetrics`).
 - [x] Debug: средняя задержка кадра относительно `Direct3D11CaptureFrame.SystemRelativeTime` после `TryGetNextFrame` — среднее и последнее в миллисекундах (`FrameCaptureMetrics`, журнал после теста захвата); кадр успешного `Recreate` в выборку латентности не входит, базовая QPC-метка сбрасывается.
-- [x] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(`Recreate` по `ContentSize`; счётчик `FrameCaptureMetrics.PoolRecreateFailureCount` + предупреждение в тесте захвата; `ScreenCaptureFailureClassifier` + строки `CaptureError_*` / `CaptureTest_PoolRecreateFailures` в UI.)_
+- [x] Ошибки: права, конфликт захвата, смена разрешения/масштаба. _(`Recreate` по `ContentSize`; счётчик `FrameCaptureMetrics.PoolRecreateFailureCount` + предупреждение в тесте захвата; `ScreenCaptureFailureClassifier` + строки `CaptureError_\*`/`CaptureTest*PoolRecreateFailures` в UI.)*
 - [x] DPI: PerMonitorV2, тест 125% / 150%. _(PerMonitorV2 в `src/ScreenRecorder.App/app.manifest`; пошаговый ручной регресс — [docs/DPI_MANUAL_TEST_CHECKLIST.md](docs/DPI_MANUAL_TEST_CHECKLIST.md).)_
 - [x] **Готово:** 60 с захвата без утечки VRAM/RAM (диспетчер задач). _(60s test: WorkingSet/PrivateBytes держатся на плато, тест не падает; GPU utilization не поднималась выше ~0.1.)_
 - [x] **Ограничение:** зафиксировать в UX/доках возможный **чёрный экран** на DRM/защищённом контенте (ожидаемо). _(раздел в [README.md](README.md) «Захват экрана (ограничения)».)_
@@ -114,8 +117,8 @@
 - [x] **Продуктовое решение:** одна микшированная дорожка **или** две AAC-дорожки в MP4 (v1 vs v1.1 — зафиксировать). _(MVP / v1: **одна** смешанная стерео AAC-LC — `RecordingAudioSpec.MvpMp4AudioTrackLayout` = `SingleMixedStereoAacLc`; две дорожки — `DualSeparateSystemAndMicrophoneAacLc`, возможная v1.1; README + `RecordingOutputFormat`.)_
 - [x] **Акустика:** риск гула без наушников; подсказка в UI; мониторинг выкл по умолчанию; опционально ducking. _(блок предупреждения + переключатель «мониторинг» на `MainPage`, `AppSettings.AudioPassthroughMonitoringEnabled` по умолчанию false; `RecordingAcousticUxSpec` — ducking не в MVP; воспроизведение в динамики при записи — фаза E.)_
 - [x] **Смена default audio** во время записи: политика (переподключение / стоп / ошибка). _(MVP: если в UI выбрано «По умолчанию» (`null` id), при `DefaultCaptureEndpointChanged` / `DefaultRenderEndpointChanged` перезапуск соответствующей ноги WASAPI — `RecordingAudioDefaultDevicePolicy` + `MicAndLoopbackCaptureSession.Restart*`; явный выбор устройства не трогаем; сбой перезапуска — фатальная ошибка записи без автоповторов.)_
-- [x] Тест: 2 мин (например YouTube + голос), клиппинг, рассинхрон. _(Кнопка «2 мин» на `MainPage` + лог: байты, счётчики IEEE float |U|≥1, оценка Δ длительности PCM; прогресс 30/60/90 с; ручной чеклист — [docs/AUDIO_2MIN_MANUAL_TEST_CHECKLIST.md](docs/AUDIO_2MIN_MANUAL_TEST_CHECKLIST.md); полная A/V после mux — фаза D.)_
-- [ ] **Готово:** временные WAV-дампы звучат корректно до видеокодека.
+- [x] Тест: 2 мин (например YouTube + голос), клиппинг, рассинхрон. _(Кнопки «10 с» и «2 мин» на `MainPage` + лог: байты, счётчики IEEE float |U|≥1, оценка Δ длительности PCM, **WAV-дампы** в `%TEMP%`; прогресс 30/60/90 с только для 2 мин; ручной чеклист — [docs/AUDIO_2MIN_MANUAL_TEST_CHECKLIST.md](docs/AUDIO_2MIN_MANUAL_TEST_CHECKLIST.md); полная A/V после mux — фаза D.)_
+- [x] **Готово:** временные WAV-дампы звучат корректно до видеокодека.
 
 ---
 

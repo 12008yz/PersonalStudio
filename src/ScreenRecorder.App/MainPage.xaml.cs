@@ -403,7 +403,8 @@ public sealed partial class MainPage : Page
 
     /// <summary>
     /// Одновременный захват микрофона и loopback; для длительности ≥ 60 с — сообщения каждые 30 с в лог активности.
-    /// Считает байты, грубый индикатор клиппинга по IEEE float (|U| ≥ 1) и оценку разницы длительностей PCM.
+    /// Считает байты (после успешной записи в WAV-дамп), грубый индикатор клиппинга по IEEE float (|U| ≥ 1),
+    /// оценку разницы длительностей PCM и пишет два временных WAV в <c>%TEMP%</c> для прослушивания до фазы MF.
     /// </summary>
     private async Task RunDualAudioTestAsync(int durationSeconds)
     {
@@ -473,12 +474,28 @@ public sealed partial class MainPage : Page
                 App.Services.GetService<ILogger<MicrophoneCaptureSession>>(),
                 App.Services.GetService<ILogger<LoopbackCaptureSession>>());
 
+            var wavSessionId = Guid.NewGuid().ToString("n");
+            var micWavPath = Path.Combine(Path.GetTempPath(), "ScreenRecorderDualAudio_" + wavSessionId + "_mic.wav");
+            var loopWavPath = Path.Combine(Path.GetTempPath(), "ScreenRecorderDualAudio_" + wavSessionId + "_loopback.wav");
+            using var micWavWriter = new AppendOnlyPcmWaveFileWriter(micWavPath);
+            using var loopWavWriter = new AppendOnlyPcmWaveFileWriter(loopWavPath);
+
             void OnSourcedPcm(object? _, SourcedPcmCaptureDataAvailableEventArgs e)
             {
                 var n = e.PcmSamples.Length;
                 var c = PcmIeeeFloatDiagnostics.CountAtOrBeyondFullScale(e.PcmSamples, e.WaveFormat);
                 if (e.SourceKind == PcmCaptureSourceKind.Microphone)
                 {
+                    try
+                    {
+                        micWavWriter.Append(e.PcmSamples, e.WaveFormat);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        logger.LogWarning(ex, "Dual-audio test: microphone WAV dump rejected a buffer (format change).");
+                        return;
+                    }
+
                     Interlocked.Add(ref micBytes, n);
                     Interlocked.Add(ref micClips, c);
                     lock (fmtLock)
@@ -488,6 +505,16 @@ public sealed partial class MainPage : Page
                 }
                 else if (e.SourceKind == PcmCaptureSourceKind.Loopback)
                 {
+                    try
+                    {
+                        loopWavWriter.Append(e.PcmSamples, e.WaveFormat);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        logger.LogWarning(ex, "Dual-audio test: loopback WAV dump rejected a buffer (format change).");
+                        return;
+                    }
+
                     Interlocked.Add(ref loopBytes, n);
                     Interlocked.Add(ref loopClips, c);
                     lock (fmtLock)
@@ -578,6 +605,42 @@ public sealed partial class MainPage : Page
                     AppendUiLine(
                         loader.GetString("DualAudioTest_MicZeroNote")
                         ?? "Microphone captured 0 bytes — speak during the test or check the microphone and privacy permissions.");
+                }
+
+                if (micWavWriter.TotalBytesWritten > 0)
+                {
+                    var micDumpFmt = loader.GetString("DualAudioTest_WavDumpMic");
+                    AppendUiLine(string.Format(
+                        culture,
+                        string.IsNullOrEmpty(micDumpFmt)
+                            ? "Temporary microphone WAV (play in any media app): {0}"
+                            : micDumpFmt,
+                        micWavPath));
+                }
+                else
+                {
+                    var skipped = loader.GetString("DualAudioTest_WavDumpMicSkipped");
+                    AppendUiLine(string.IsNullOrEmpty(skipped)
+                        ? "No microphone WAV file — no samples captured."
+                        : skipped);
+                }
+
+                if (loopWavWriter.TotalBytesWritten > 0)
+                {
+                    var loopDumpFmt = loader.GetString("DualAudioTest_WavDumpLoopback");
+                    AppendUiLine(string.Format(
+                        culture,
+                        string.IsNullOrEmpty(loopDumpFmt)
+                            ? "Temporary system sound (loopback) WAV: {0}"
+                            : loopDumpFmt,
+                        loopWavPath));
+                }
+                else
+                {
+                    var skipped = loader.GetString("DualAudioTest_WavDumpLoopbackSkipped");
+                    AppendUiLine(string.IsNullOrEmpty(skipped)
+                        ? "No loopback WAV file — no samples captured."
+                        : skipped);
                 }
             }
             finally

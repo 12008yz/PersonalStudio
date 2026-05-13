@@ -141,4 +141,16 @@
   <data name="DualAudioTest_Error" xml:space="preserve">
     <value>Ошибка теста двух каналов: {0}</value>
   </data>
+  <data name="DualAudioTest_WavDumpMic" xml:space="preserve">
+    <value>Временный WAV микрофона (откройте в любом плеере и проверьте звук до кодека видео): {0}</value>
+  </data>
+  <data name="DualAudioTest_WavDumpLoopback" xml:space="preserve">
+    <value>Временный WAV системного звука (loopback): {0}</value>
+  </data>
+  <data name="DualAudioTest_WavDumpMicSkipped" xml:space="preserve">
+    <value>Файл WAV микрофона не создан — PCM не захвачен.</value>
+  </data>
+  <data name="DualAudioTest_WavDumpLoopbackSkipped" xml:space="preserve">
+    <value>Файл WAV loopback не создан — PCM не захвачен (тишина на выводе или другое устройство).</value>
+  </data>
 </root>
