@@ -113,7 +113,7 @@
 - [x] Ресэмплинг к 48 kHz (или одна выбранная частота на весь проект).
 - [x] **Продуктовое решение:** одна микшированная дорожка **или** две AAC-дорожки в MP4 (v1 vs v1.1 — зафиксировать). _(MVP / v1: **одна** смешанная стерео AAC-LC — `RecordingAudioSpec.MvpMp4AudioTrackLayout` = `SingleMixedStereoAacLc`; две дорожки — `DualSeparateSystemAndMicrophoneAacLc`, возможная v1.1; README + `RecordingOutputFormat`.)_
 - [x] **Акустика:** риск гула без наушников; подсказка в UI; мониторинг выкл по умолчанию; опционально ducking. _(блок предупреждения + переключатель «мониторинг» на `MainPage`, `AppSettings.AudioPassthroughMonitoringEnabled` по умолчанию false; `RecordingAcousticUxSpec` — ducking не в MVP; воспроизведение в динамики при записи — фаза E.)_
-- [ ] **Смена default audio** во время записи: политика (переподключение / стоп / ошибка).
+- [x] **Смена default audio** во время записи: политика (переподключение / стоп / ошибка). _(MVP: если в UI выбрано «По умолчанию» (`null` id), при `DefaultCaptureEndpointChanged` / `DefaultRenderEndpointChanged` перезапуск соответствующей ноги WASAPI — `RecordingAudioDefaultDevicePolicy` + `MicAndLoopbackCaptureSession.Restart*`; явный выбор устройства не трогаем; сбой перезапуска — фатальная ошибка записи без автоповторов.)_
 - [ ] Тест: 2 мин (например YouTube + голос), клиппинг, рассинхрон.
 - [ ] **Готово:** временные WAV-дампы звучат корректно до видеокодека.
 

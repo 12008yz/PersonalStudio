@@ -102,6 +102,49 @@ public sealed class MicAndLoopbackCaptureSession : IDisposable
         }
     }
 
+    /// <summary>
+    /// Перезапуск loopback с тем же правилом endpoint, что в <see cref="Start"/> (<c>null</c> — текущий default render).
+    /// Микрофон не останавливается; агрегирующий <see cref="PcmDataAvailable"/> остаётся подписанным.
+    /// См. <see cref="RecordingAudioDefaultDevicePolicy"/>.
+    /// </summary>
+    public void RestartLoopback(string? loopbackRenderEndpointId)
+    {
+        Loopback.Stop();
+        Loopback.Start(loopbackRenderEndpointId);
+    }
+
+    /// <summary>
+    /// Перезапуск микрофона (<c>null</c> — текущий default capture). Loopback не трогается.
+    /// См. <see cref="RecordingAudioDefaultDevicePolicy"/>.
+    /// </summary>
+    public void RestartMicrophone(string? microphoneCaptureEndpointId)
+    {
+        Microphone.Stop();
+        Microphone.Start(microphoneCaptureEndpointId);
+    }
+
+    /// <summary>
+    /// Перезапуск обеих ног в порядке как при <see cref="Start"/> (сначала loopback, затем микрофон).
+    /// При ошибке старта микрофона loopback останавливается, как при первичном <see cref="Start"/>.
+    /// </summary>
+    public void RestartBoth(string? microphoneCaptureEndpointId, string? loopbackRenderEndpointId)
+    {
+        Loopback.Stop();
+        Microphone.Stop();
+        Loopback.Start(loopbackRenderEndpointId);
+        try
+        {
+            Microphone.Start(microphoneCaptureEndpointId);
+        }
+        catch
+        {
+            try { Loopback.Stop(); }
+            catch { /* откат; не маскировать исходную ошибку */ }
+
+            throw;
+        }
+    }
+
     public void Dispose() => Stop();
 
     private bool AttachForwardingHandlers()

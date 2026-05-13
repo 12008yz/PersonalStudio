@@ -19,6 +19,7 @@ public enum Mp4AudioTrackLayout
 /// <summary>
 /// Единые ориентиры по аудио для пайплайна записи и MF. Захват WASAPI может идти в частоте устройства; при отличии от
 /// <see cref="NominalSampleRateHz"/> движок приводит PCM к номиналу (см. <see cref="Audio.NominalSampleRatePcmConverter"/>).
+/// Смена системного default во время записи при выборе «По умолчанию» — <see cref="Audio.RecordingAudioDefaultDevicePolicy"/>.
 /// </summary>
 public static class RecordingAudioSpec
 {
