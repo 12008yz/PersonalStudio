@@ -124,8 +124,8 @@
 
 ## Фаза D — Media Foundation → MP4 (неделя 3–5)
 
-- [ ] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК. _(Базовый сценарий уже покрыт: `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` и тест `MediaFoundationEncoderCatalogTests`; закрыть пункт — после прогона на полной матрице железа, [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md), и при необходимости доработать сценарии.)_
-- [ ] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные.
+- [x] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК. _( `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` / `MediaFoundationEncoderAvailability.Probe()` + тесты; матрица железа [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) — дополнять на AMD / «чистый» Intel iGPU по мере тестов.)_
+- [x] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные. _(базовый mux: `Mp4SinkWriter` + `Mp4SinkWriterConfiguration`, NV12/PCM16 → MP4, тесты `Mp4SinkWriterTests` / `Mp4SinkWriterMediaTypesTests`; **не закрывает** фазу D: конвертация из захвата, time origin QPC, GOP, finalize при ошибках, матрица GPU — ниже.)_
 - [ ] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер).
 - [ ] Общий time origin при старте сессии; согласование видео QPC и аудио-клока.
 - [ ] GOP / keyframe interval; CBR/VBR — выбрать и протестировать.
