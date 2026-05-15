@@ -25,6 +25,8 @@ public sealed class WinRtGraphicsDevice : IDisposable
 
     public IDirect3DDevice WinRt { get; }
 
+    public ID3D11Device D3D11Device => _d3d11;
+
     public static WinRtGraphicsDevice CreateHardwareOrWarp()
     {
         var flags = DeviceCreationFlags.BgraSupport | DeviceCreationFlags.VideoSupport;

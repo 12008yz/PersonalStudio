@@ -126,7 +126,7 @@
 
 - [x] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК. _( `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` / `MediaFoundationEncoderAvailability.Probe()` + тесты; матрица железа [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) — дополнять на AMD / «чистый» Intel iGPU по мере тестов.)_
 - [x] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные. _(базовый mux: `Mp4SinkWriter` + `Mp4SinkWriterConfiguration`, NV12/PCM16 → MP4, тесты `Mp4SinkWriterTests` / `Mp4SinkWriterMediaTypesTests`; **не закрывает** фазу D: конвертация из захвата, time origin QPC, GOP, finalize при ошибках, матрица GPU — ниже.)_
-- [ ] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер).
+- [x] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер). _(CPU: `BgraToNv12Converter`, readback `Direct3D11BgraFrameReader`, фасад `CaptureFrameNv12Converter`; шейдер — позже.)_
 - [ ] Общий time origin при старте сессии; согласование видео QPC и аудио-клока.
 - [ ] GOP / keyframe interval; CBR/VBR — выбрать и протестировать.
 - [ ] Корректный `Finalize` при Stop и при ошибке (минимизировать битые файлы).
