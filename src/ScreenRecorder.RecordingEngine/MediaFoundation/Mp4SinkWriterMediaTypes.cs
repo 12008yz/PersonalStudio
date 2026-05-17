@@ -18,6 +18,8 @@ internal static class Mp4SinkWriterMediaTypes
         mediaType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio((uint)configuration.FramesPerSecond, 1));
         mediaType.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
         mediaType.Set(MediaTypeAttributeKeys.AvgBitrate, (uint)configuration.VideoBitrateBps);
+        mediaType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, (ulong)configuration.ComputeMaxKeyframeSpacingHns());
+        mediaType.Set(MediaTypeAttributeKeys.H264RateControlModes, (uint)configuration.VideoRateControlMode);
         return mediaType;
     }
 

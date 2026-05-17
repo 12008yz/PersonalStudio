@@ -9,8 +9,20 @@ public sealed class Mp4SinkWriterConfiguration
 
     public int FramesPerSecond { get; init; } = RecordingNfrSpec.ReferenceFramesPerSecond;
 
-    /// <summary>Целевой битрейт видео (бит/с).</summary>
+    /// <summary>Целевой средний битрейт видео (бит/с).</summary>
     public int VideoBitrateBps { get; init; } = 4_000_000;
+
+    /// <summary>
+    /// Потолок битрейта для <see cref="H264RateControlMode.PeakConstrainedVbr"/>.
+    /// <c>null</c> — <see cref="ComputeVideoPeakBitrateBps"/> (по умолчанию 1.5× среднего).
+    /// </summary>
+    public int? VideoPeakBitrateBps { get; init; }
+
+    /// <summary>IDR/keyframe не реже чем раз в N секунд (размер GOP в кадрах = FPS × N).</summary>
+    public int VideoKeyframeIntervalSeconds { get; init; } = RecordingVideoEncodingSpec.DefaultKeyframeIntervalSeconds;
+
+    /// <summary>Режим H.264 rate control для MFT. MVP: <see cref="RecordingVideoEncodingSpec.DefaultRateControlMode"/>.</summary>
+    public H264RateControlMode VideoRateControlMode { get; init; } = RecordingVideoEncodingSpec.DefaultRateControlMode;
 
     public int AudioChannels { get; init; } = 2;
 
@@ -35,6 +47,32 @@ public sealed class Mp4SinkWriterConfiguration
         if (VideoBitrateBps <= 0)
             throw new ArgumentOutOfRangeException(nameof(VideoBitrateBps), "Video bitrate must be positive.");
 
+        if (VideoPeakBitrateBps is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(VideoPeakBitrateBps), "Video peak bitrate must be positive when set.");
+
+        if (VideoPeakBitrateBps is int peak && peak < VideoBitrateBps)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(VideoPeakBitrateBps),
+                "Peak bitrate must be greater than or equal to average bitrate.");
+        }
+
+        if (VideoRateControlMode == H264RateControlMode.ConstantBitrate
+            && VideoPeakBitrateBps is int cbrPeak
+            && cbrPeak != VideoBitrateBps)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(VideoPeakBitrateBps),
+                "For CBR, peak bitrate must equal average bitrate when explicitly set.");
+        }
+
+        if (VideoKeyframeIntervalSeconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(VideoKeyframeIntervalSeconds),
+                "Keyframe interval must be positive.");
+        }
+
         if (AudioChannels <= 0)
             throw new ArgumentOutOfRangeException(nameof(AudioChannels), "Audio channel count must be positive.");
 
@@ -44,4 +82,36 @@ public sealed class Mp4SinkWriterConfiguration
         if (AudioBitrateBps <= 0)
             throw new ArgumentOutOfRangeException(nameof(AudioBitrateBps), "Audio bitrate must be positive.");
     }
+
+    /// <summary>Размер GOP в кадрах для <see cref="H264CodecApiGuids.AVEncMPVGOPSize"/>.</summary>
+    public uint ComputeVideoGopSizeFrames() =>
+        (uint)Math.Max(1, FramesPerSecond * VideoKeyframeIntervalSeconds);
+
+    /// <summary>Максимальный битрейт (бит/с) для CODECAPI_AVEncCommonMaxBitRate (только CBR / peak-constrained VBR).</summary>
+    public int ComputeVideoPeakBitrateBps()
+    {
+        if (!Mp4H264EncoderParameters.AppliesMaxBitrateCeiling(VideoRateControlMode))
+        {
+            throw new InvalidOperationException(
+                $"Peak bitrate is not defined for rate control mode {VideoRateControlMode}.");
+        }
+
+        if (VideoPeakBitrateBps is int explicitPeak)
+            return explicitPeak;
+
+        if (VideoRateControlMode == H264RateControlMode.ConstantBitrate)
+            return VideoBitrateBps;
+
+        return VideoBitrateBps
+            * RecordingVideoEncodingSpec.DefaultPeakBitrateNumerator
+            / RecordingVideoEncodingSpec.DefaultPeakBitrateDenominator;
+    }
+
+    /// <summary>
+    /// <see cref="MediaTypeAttributeKeys.MaxKeyframeSpacing"/> (100-ns), согласовано с <see cref="ComputeVideoGopSizeFrames"/>
+    /// и фактической длительностью кадра MF (избегает расхождения 24 fps ↔ 10_000_000/24).
+    /// </summary>
+    public long ComputeMaxKeyframeSpacingHns() =>
+        ComputeVideoGopSizeFrames() * Mp4SinkWriterMediaTypes.FrameDurationHns(FramesPerSecond);
 }
+

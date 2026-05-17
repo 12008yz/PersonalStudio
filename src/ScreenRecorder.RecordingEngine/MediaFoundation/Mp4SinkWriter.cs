@@ -64,7 +64,8 @@ public sealed class Mp4SinkWriter : IDisposable
             var videoStreamIndex = sinkWriter.AddStream(videoOutputType);
 
             using var videoInputType = Mp4SinkWriterMediaTypes.CreateNv12InputType(configuration);
-            sinkWriter.SetInputMediaType(videoStreamIndex, videoInputType, null);
+            using var videoEncoderParameters = Mp4H264EncoderParameters.CreateEncodingAttributes(configuration);
+            sinkWriter.SetInputMediaType(videoStreamIndex, videoInputType, videoEncoderParameters);
 
             using var audioOutputType = Mp4SinkWriterMediaTypes.CreateAacOutputType(configuration);
             var audioStreamIndex = sinkWriter.AddStream(audioOutputType);

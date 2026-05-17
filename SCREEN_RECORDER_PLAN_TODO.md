@@ -128,7 +128,7 @@
 - [x] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные. _(базовый mux: `Mp4SinkWriter` + `Mp4SinkWriterConfiguration`, NV12/PCM16 → MP4, тесты `Mp4SinkWriterTests` / `Mp4SinkWriterMediaTypesTests`; **не закрывает** фазу D: конвертация из захвата, time origin QPC, GOP, finalize при ошибках, матрица GPU — ниже.)_
 - [x] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер). _(CPU: `BgraToNv12Converter`, readback `Direct3D11BgraFrameReader`, фасад `CaptureFrameNv12Converter`; шейдер — позже.)_
 - [x] Общий time origin при старте сессии; согласование видео QPC и аудио-клока. _(`RecordingSessionTimebase` + привязка в `RecordingRuntime`; видео — `CapturedVideoFrameEventArgs` / QPC−latency; аудио — счётчики сэмплов на ногах mic/loopback в `SourcedPcmCaptureDataAvailableEventArgs`; тесты `RecordingSessionTimebaseTests`.)_
-- [ ] GOP / keyframe interval; CBR/VBR — выбрать и протестировать.
+- [x] GOP / keyframe interval; CBR/VBR — выбрать и протестировать. _(MVP: **peak-constrained VBR** (`H264RateControlMode.PeakConstrainedVbr`), средний = `VideoBitrateBps`, пик ≈ 1.5×; **GOP 2 с** (`VideoKeyframeIntervalSeconds` → `CODECAPI_AVEncMPVGOPSize` + `MF_MT_MAX_KEYFRAME_SPACING`); CBR — `ConstantBitrate`. Спека: `RecordingVideoEncodingSpec`; тесты `Mp4SinkWriterConfigurationTests`, `Mp4SinkWriterTests` CBR/VBR.)_
 - [ ] Корректный `Finalize` при Stop и при ошибке (минимизировать битые файлы).
 - [ ] **Готово:** MP4 открывается штатными средствами; синхрон «на слух» приемлемый; таблица: Intel / NVIDIA / AMD (аппаратный MFT vs fallback).
 

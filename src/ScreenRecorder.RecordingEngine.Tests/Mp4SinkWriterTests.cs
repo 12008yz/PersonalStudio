@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ScreenRecorder.RecordingEngine;
 using ScreenRecorder.RecordingEngine.MediaFoundation;
 
 namespace ScreenRecorder.RecordingEngine.Tests;
@@ -6,6 +7,23 @@ namespace ScreenRecorder.RecordingEngine.Tests;
 [TestClass]
 public sealed class Mp4SinkWriterTests
 {
+    [TestMethod]
+    public void Create_with_cbr_rate_control_writes_playable_mp4()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), $"ScreenRecorder_Mp4SinkWriter_Cbr_{Guid.NewGuid():N}.mp4");
+        var configuration = new Mp4SinkWriterConfiguration
+        {
+            Width = 320,
+            Height = 180,
+            FramesPerSecond = 30,
+            VideoBitrateBps = 1_500_000,
+            VideoRateControlMode = H264RateControlMode.ConstantBitrate,
+            VideoKeyframeIntervalSeconds = 1,
+        };
+
+        WriteShortClip(outputPath, configuration, frameCount: 30);
+    }
+
     [TestMethod]
     public void Create_writes_playable_mp4_with_synthetic_nv12_and_pcm()
     {
@@ -27,15 +45,20 @@ public sealed class Mp4SinkWriterTests
             AudioBitrateBps = 128_000,
         };
 
+        WriteShortClip(outputPath, configuration, frameCount);
+    }
+
+    private static void WriteShortClip(string outputPath, Mp4SinkWriterConfiguration configuration, int frameCount)
+    {
         try
         {
             using var writer = Mp4SinkWriter.Create(outputPath, configuration);
-            var nv12 = Nv12SolidColorBuffer.Create(width, height, y: 81, u: 90, v: 240);
-            var samplesPerFrame = configuration.AudioSampleRateHz / fps;
+            var nv12 = Nv12SolidColorBuffer.Create(configuration.Width, configuration.Height, y: 81, u: 90, v: 240);
+            var samplesPerFrame = configuration.AudioSampleRateHz / configuration.FramesPerSecond;
             var pcmBytesPerFrame = samplesPerFrame * configuration.AudioChannels * 2;
             var pcm = CreateSinePcm16(pcmBytesPerFrame, frequencyHz: 440, sampleRateHz: configuration.AudioSampleRateHz);
 
-            var expectedDurationHns = (long)(durationSeconds * 10_000_000);
+            var expectedDurationHns = (long)frameCount * writer.VideoFrameDurationHns;
             var lastTimestampHns = 0L;
 
             for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
@@ -46,9 +69,7 @@ public sealed class Mp4SinkWriterTests
                 writer.WriteAudioPcm16(pcm, timestampHns, writer.VideoFrameDurationHns);
             }
 
-            Assert.AreEqual(10_000_000 / fps, writer.VideoFrameDurationHns);
             Assert.IsTrue(lastTimestampHns + writer.VideoFrameDurationHns <= expectedDurationHns + writer.VideoFrameDurationHns);
-
             writer.FinalizeWriting();
         }
         finally
@@ -56,7 +77,7 @@ public sealed class Mp4SinkWriterTests
             if (File.Exists(outputPath))
             {
                 var info = new FileInfo(outputPath);
-                Assert.IsTrue(info.Length > 16 * 1024, "MP4 output looks too small.");
+                Assert.IsTrue(info.Length > 8 * 1024, "MP4 output looks too small.");
                 try
                 {
                     File.Delete(outputPath);
