@@ -2,7 +2,7 @@
 
 проверь всё за собой ещё раз. что бы не было ошибок или несостыковок в логике.
 
-привет. прочитай файл C:\progect\games\SCREEN_RECORDER_PLAN_TODO.md и давай выполнять следующий пункт плана
+привет. прочитай файл SCREEN_RECORDER_PLAN_TODO.md и давай выполнять следующий пункт плана
 
 Чеклист по фазам, лучшие практики
 и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
@@ -127,7 +127,7 @@
 - [x] `MFStartup`, проверка H.264 encoder MFT и AAC encoder MFT на целевых ПК. _( `MediaFoundationLifetime` / `MediaFoundationEncoderCatalog` / `MediaFoundationEncoderAvailability.Probe()` + тесты; матрица железа [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md) — дополнять на AMD / «чистый» Intel iGPU по мере тестов.)_
 - [x] `IMFSinkWriter` → `.mp4`: видео H.264, аудио AAC-LC, битрейты разумные. _(базовый mux: `Mp4SinkWriter` + `Mp4SinkWriterConfiguration`, NV12/PCM16 → MP4, тесты `Mp4SinkWriterTests` / `Mp4SinkWriterMediaTypesTests`; **не закрывает** фазу D: конвертация из захвата, time origin QPC, GOP, finalize при ошибках, матрица GPU — ниже.)_
 - [x] Конверсия кадра в формат энкодера (часто NV12): сначала CPU, потом оптимизация (шейдер). _(CPU: `BgraToNv12Converter`, readback `Direct3D11BgraFrameReader`, фасад `CaptureFrameNv12Converter`; шейдер — позже.)_
-- [ ] Общий time origin при старте сессии; согласование видео QPC и аудио-клока.
+- [x] Общий time origin при старте сессии; согласование видео QPC и аудио-клока. _(`RecordingSessionTimebase` + привязка в `RecordingRuntime`; видео — `CapturedVideoFrameEventArgs` / QPC−latency; аудио — счётчики сэмплов на ногах mic/loopback в `SourcedPcmCaptureDataAvailableEventArgs`; тесты `RecordingSessionTimebaseTests`.)_
 - [ ] GOP / keyframe interval; CBR/VBR — выбрать и протестировать.
 - [ ] Корректный `Finalize` при Stop и при ошибке (минимизировать битые файлы).
 - [ ] **Готово:** MP4 открывается штатными средствами; синхрон «на слух» приемлемый; таблица: Intel / NVIDIA / AMD (аппаратный MFT vs fallback).

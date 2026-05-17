@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using ScreenRecorder.RecordingEngine.Recording;
 using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -11,11 +12,12 @@ namespace ScreenRecorder.RecordingEngine.Capture;
 /// <summary>
 /// Windows.Graphics.Capture session for one monitor: stable frame stream + QPC timestamps (видеопайплайн без кодека).
 /// </summary>
-public sealed class MonitorFrameCaptureSession : IDisposable
+public sealed class MonitorFrameCaptureSession : IDisposable, IRecordingSessionTimebaseConsumer
 {
     private readonly ILogger<MonitorFrameCaptureSession>? _logger;
     private readonly object _gate = new();
     private readonly Stopwatch _stopwatch = new();
+    private volatile RecordingSessionTimebase? _sessionTimebase;
 
     private WinRtGraphicsDevice? _graphics;
     private GraphicsCaptureItem? _item;
@@ -49,6 +51,11 @@ public sealed class MonitorFrameCaptureSession : IDisposable
     }
 
     public bool IsRunning => Volatile.Read(ref _active) != 0;
+
+    public event EventHandler<CapturedVideoFrameEventArgs>? FrameCaptured;
+
+    public void BindSessionTimebase(RecordingSessionTimebase timebase) =>
+        _sessionTimebase = timebase ?? throw new ArgumentNullException(nameof(timebase));
 
     public void Start(nint hmonitor)
     {
@@ -221,6 +228,16 @@ public sealed class MonitorFrameCaptureSession : IDisposable
                 _latencySumMilliseconds += latencyMs;
                 _latencySampleCount++;
                 _lastHandlerLatencyMilliseconds = latencyMs;
+            }
+
+            var timebase = _sessionTimebase;
+            if (timebase is { IsEstablished: true })
+            {
+                var mediaHns = timebase.VideoCaptureToMediaTimestampHns(handlerTimestamp, latency);
+                var captureQpc = RecordingSessionTimebase.EstimateCaptureQpcTicks(handlerTimestamp, latency);
+                FrameCaptured?.Invoke(
+                    this,
+                    new CapturedVideoFrameEventArgs(contentSize, mediaHns, captureQpc, latency));
             }
 
             // Фаза B: не читаем surface; только метрики и своевременный release кадра.

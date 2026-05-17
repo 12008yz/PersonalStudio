@@ -23,8 +23,8 @@ public sealed class LoopbackCaptureSession : IDisposable
 
     private static readonly LoopbackInitFlagStyle[] LoopbackFlagStyleCandidates =
     [
-        LoopbackInitFlagStyle.NoSrcDefaultQuality,
         LoopbackInitFlagStyle.MinimalLoopbackOnly,
+        LoopbackInitFlagStyle.NoSrcDefaultQuality,
         LoopbackInitFlagStyle.NAudioDefaultWithSrcQuality,
     ];
 
@@ -66,9 +66,21 @@ public sealed class LoopbackCaptureSession : IDisposable
     /// </remarks>
     public void Start(string? preferredRenderEndpointId)
     {
+        // Весь WASAPI loopback (открытие MMDevice + Initialize) — в MTA; на WinUI STA иначе E_INVALIDARG / E_NOINTERFACE.
+        InvokeOnMtaWorker(() => StartCore(preferredRenderEndpointId));
+    }
+
+    private void StartCore(string? preferredRenderEndpointId)
+    {
         // Каждая попытка открывает новый MMDevice: после Dispose предыдущего WasapiLoopback экземпляр устройства нельзя переиспользовать.
 
         Exception? lastRecoverable = null;
+
+        if (TryOpenRenderAndStartManual(preferredRenderEndpointId, LoopbackFlagStyleCandidates, out var manualFail))
+            return;
+
+        if (manualFail is not null)
+            lastRecoverable = manualFail;
 
         foreach (var bufferMs in LoopbackBufferSizeMillisecondsCandidates)
         {
@@ -98,19 +110,29 @@ public sealed class LoopbackCaptureSession : IDisposable
             }
         }
 
-        if (TryOpenRenderAndStartManual(preferredRenderEndpointId, LoopbackFlagStyleCandidates, out var manualFail))
-            return;
-
-        if (manualFail is not null)
-            lastRecoverable = manualFail;
-
         var detail = DescribeLoopbackInitFailure(lastRecoverable);
+        detail += DescribeRenderMixFormat(preferredRenderEndpointId);
         throw new ArgumentException(
             "Loopback WASAPI initialization failed after compatibility retries. "
             + detail
             + " Check the playback device, drivers, "
             + "and that exclusive mode elsewhere is not blocking shared stream creation.",
             lastRecoverable);
+    }
+
+    private static string DescribeRenderMixFormat(string? preferredRenderEndpointId)
+    {
+        try
+        {
+            using var device = RenderEndpointMmDevice.OpenRender(preferredRenderEndpointId);
+            using var client = device.AudioClient;
+            var mix = client.MixFormat;
+            return $" Render device mix: {mix.SampleRate} Hz, {mix.Channels} ch, {mix.BitsPerSample}-bit {mix.Encoding}. ";
+        }
+        catch (Exception ex)
+        {
+            return $" Could not read render mix format ({ex.Message}). ";
+        }
     }
 
     private static string DescribeLoopbackInitFailure(Exception? ex)
@@ -140,23 +162,22 @@ public sealed class LoopbackCaptureSession : IDisposable
         out Exception? recoverableInitFailure)
     {
         recoverableInitFailure = null;
-        MMDevice device = RenderEndpointMmDevice.OpenRender(preferredRenderEndpointId);
-        ManualWasapiLoopbackCapture? manual;
 
+        var device = RenderEndpointMmDevice.OpenRender(preferredRenderEndpointId);
+        ManualWasapiLoopbackCapture? manual;
         try
         {
             manual = ManualWasapiLoopbackCapture.TryInitializeWithRetries(device, styles, out recoverableInitFailure);
+            if (manual is null)
+            {
+                device.Dispose();
+                return false;
+            }
         }
         catch
         {
             device.Dispose();
             throw;
-        }
-
-        if (manual is null)
-        {
-            device.Dispose();
-            return false;
         }
 
         lock (_gate)
@@ -181,7 +202,7 @@ public sealed class LoopbackCaptureSession : IDisposable
 
         try
         {
-            InvokeStartRecordingOnMtaWorker(manual.StartRecording);
+            manual.StartRecording();
             recoverableInitFailure = null;
             return true;
         }
@@ -249,8 +270,7 @@ public sealed class LoopbackCaptureSession : IDisposable
 
         try
         {
-            // WinUI/UI STA: второй проблемный узел после флагов — Initialize на STA.
-            InvokeStartRecordingOnMtaWorker(capture.StartRecording);
+            capture.StartRecording();
             recoverableInitFailure = null;
             return true;
         }
@@ -274,19 +294,17 @@ public sealed class LoopbackCaptureSession : IDisposable
         }
     }
 
-    /// <summary>
-    /// <see cref="WasapiCapture.StartRecording"/> синхронно вызывает <c>Initialize</c>/<c>Start</c>;
-    /// на WinUI STA для loopback часто получают E_INVALIDARG — вызываем с MTA-воркера.
-    /// </summary>
-    private static void InvokeStartRecordingOnMtaWorker(Action startRecordingAction)
+    private static T InvokeOnMtaWorker<T>(Func<T> work)
     {
+        T? result = default;
         Exception? failure = null;
         using var done = new ManualResetEventSlim(false);
+
         void Work()
         {
             try
             {
-                startRecordingAction();
+                result = work();
             }
             catch (Exception ex)
             {
@@ -301,7 +319,7 @@ public sealed class LoopbackCaptureSession : IDisposable
         Thread th = new Thread(_ => Work())
         {
             IsBackground = true,
-            Name = "WasapiLoopbackStart",
+            Name = "WasapiLoopbackMta",
         };
 
         try
@@ -310,8 +328,7 @@ public sealed class LoopbackCaptureSession : IDisposable
         }
         catch (PlatformNotSupportedException)
         {
-            startRecordingAction();
-            return;
+            return work();
         }
 
         th.Start();
@@ -319,11 +336,20 @@ public sealed class LoopbackCaptureSession : IDisposable
         const int workerTimeoutSeconds = 30;
         if (!done.Wait(TimeSpan.FromSeconds(workerTimeoutSeconds)))
             throw new TimeoutException(
-                $"WASAPI loopback StartRecording timed out after {workerTimeoutSeconds} seconds on MTA worker.");
+                $"WASAPI loopback MTA work timed out after {workerTimeoutSeconds} seconds.");
 
         if (failure is not null)
             ExceptionDispatchInfo.Capture(failure).Throw();
+
+        return result!;
     }
+
+    private static void InvokeOnMtaWorker(Action work) =>
+        InvokeOnMtaWorker<object?>(() =>
+        {
+            work();
+            return null;
+        });
 
     private void AssignWaveFormatsForActiveCapture(WaveFormat deviceFormat)
     {

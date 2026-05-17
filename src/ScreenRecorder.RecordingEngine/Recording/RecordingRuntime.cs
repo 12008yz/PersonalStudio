@@ -11,6 +11,7 @@ public sealed class RecordingRuntime : IRecordingRuntime
 
     private IFrameCaptureSession? _frameSession;
     private IAudioCaptureSession? _audioSession;
+    private RecordingSessionTimebase? _sessionTimebase;
     private CancellationTokenRegistration _externalCancellationRegistration;
     private RecordingLifecycleState _state = RecordingLifecycleState.Idle;
 
@@ -40,6 +41,17 @@ public sealed class RecordingRuntime : IRecordingRuntime
         }
     }
 
+    public RecordingSessionTimebase? SessionTimebase
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _sessionTimebase;
+            }
+        }
+    }
+
     public Task StartAsync(RecordingSessionOptions options, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -61,11 +73,17 @@ public sealed class RecordingRuntime : IRecordingRuntime
 
         try
         {
+            var timebase = new RecordingSessionTimebase();
+            timebase.Establish();
+            BindTimebase(frame, timebase);
+            BindTimebase(audio, timebase);
+
             frame.Start(options.MonitorHandle);
             audio.Start(options.PreferredMicrophoneEndpointId, options.PreferredLoopbackRenderEndpointId);
 
             lock (_gate)
             {
+                _sessionTimebase = timebase;
                 _state = RecordingLifecycleState.Recording;
                 _externalCancellationRegistration = cancellationToken.Register(StopFromExternalCancellation);
             }
@@ -122,6 +140,7 @@ public sealed class RecordingRuntime : IRecordingRuntime
             audio = _audioSession;
             _frameSession = null;
             _audioSession = null;
+            _sessionTimebase = null;
             registration = _externalCancellationRegistration;
             _externalCancellationRegistration = default;
         }
@@ -170,7 +189,19 @@ public sealed class RecordingRuntime : IRecordingRuntime
         void Stop();
     }
 
-    private sealed class MonitorFrameCaptureSessionAdapter : IFrameCaptureSession
+    private static void BindTimebase(IFrameCaptureSession session, RecordingSessionTimebase timebase)
+    {
+        if (session is IRecordingSessionTimebaseConsumer consumer)
+            consumer.BindSessionTimebase(timebase);
+    }
+
+    private static void BindTimebase(IAudioCaptureSession session, RecordingSessionTimebase timebase)
+    {
+        if (session is IRecordingSessionTimebaseConsumer consumer)
+            consumer.BindSessionTimebase(timebase);
+    }
+
+    private sealed class MonitorFrameCaptureSessionAdapter : IFrameCaptureSession, IRecordingSessionTimebaseConsumer
     {
         private readonly MonitorFrameCaptureSession _inner;
 
@@ -179,12 +210,15 @@ public sealed class RecordingRuntime : IRecordingRuntime
             _inner = inner;
         }
 
+        public void BindSessionTimebase(RecordingSessionTimebase timebase) =>
+            _inner.BindSessionTimebase(timebase);
+
         public void Start(nint monitorHandle) => _inner.Start(monitorHandle);
 
         public void Stop() => _inner.Stop();
     }
 
-    private sealed class MicAndLoopbackCaptureSessionAdapter : IAudioCaptureSession
+    private sealed class MicAndLoopbackCaptureSessionAdapter : IAudioCaptureSession, IRecordingSessionTimebaseConsumer
     {
         private readonly MicAndLoopbackCaptureSession _inner;
 
@@ -192,6 +226,9 @@ public sealed class RecordingRuntime : IRecordingRuntime
         {
             _inner = inner;
         }
+
+        public void BindSessionTimebase(RecordingSessionTimebase timebase) =>
+            _inner.BindSessionTimebase(timebase);
 
         public void Start(string? microphoneEndpointId, string? loopbackRenderEndpointId) =>
             _inner.Start(microphoneEndpointId, loopbackRenderEndpointId);

@@ -15,9 +15,13 @@ public sealed class RecordingRuntimeTests
         await runtime.StartAsync(new RecordingSessionOptions((nint)42, "mic-id", "loop-id"));
 
         Assert.AreEqual(RecordingLifecycleState.Recording, runtime.State);
+        Assert.IsNotNull(runtime.SessionTimebase);
+        Assert.IsTrue(runtime.SessionTimebase!.IsEstablished);
         Assert.AreEqual((nint)42, frame.StartedMonitorHandle);
         Assert.AreEqual("mic-id", audio.StartedMicrophoneEndpointId);
         Assert.AreEqual("loop-id", audio.StartedLoopbackEndpointId);
+        Assert.IsTrue(frame.TimebaseBound);
+        Assert.IsTrue(audio.TimebaseBound);
     }
 
     [TestMethod]
@@ -44,6 +48,7 @@ public sealed class RecordingRuntimeTests
         await runtime.StopAsync();
 
         Assert.AreEqual(RecordingLifecycleState.Idle, runtime.State);
+        Assert.IsNull(runtime.SessionTimebase);
         Assert.AreEqual(1, frame.StopCallCount);
         Assert.AreEqual(1, audio.StopCallCount);
     }
@@ -101,11 +106,15 @@ public sealed class RecordingRuntimeTests
         Assert.AreEqual(0, audio.StopCallCount);
     }
 
-    private sealed class FakeFrameCaptureSession : RecordingRuntime.IFrameCaptureSession
+    private sealed class FakeFrameCaptureSession : RecordingRuntime.IFrameCaptureSession, IRecordingSessionTimebaseConsumer
     {
         public nint StartedMonitorHandle { get; private set; }
 
         public int StopCallCount { get; private set; }
+
+        public bool TimebaseBound { get; private set; }
+
+        public void BindSessionTimebase(RecordingSessionTimebase timebase) => TimebaseBound = true;
 
         public void Start(nint monitorHandle)
         {
@@ -118,7 +127,7 @@ public sealed class RecordingRuntimeTests
         }
     }
 
-    private sealed class FakeAudioCaptureSession : RecordingRuntime.IAudioCaptureSession
+    private sealed class FakeAudioCaptureSession : RecordingRuntime.IAudioCaptureSession, IRecordingSessionTimebaseConsumer
     {
         public string? StartedMicrophoneEndpointId { get; private set; }
 
@@ -126,7 +135,11 @@ public sealed class RecordingRuntimeTests
 
         public int StopCallCount { get; private set; }
 
+        public bool TimebaseBound { get; private set; }
+
         public Exception? ThrowOnStart { get; init; }
+
+        public void BindSessionTimebase(RecordingSessionTimebase timebase) => TimebaseBound = true;
 
         public void Start(string? microphoneEndpointId, string? loopbackRenderEndpointId)
         {

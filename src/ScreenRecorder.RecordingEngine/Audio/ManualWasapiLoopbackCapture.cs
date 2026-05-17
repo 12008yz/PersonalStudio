@@ -107,9 +107,45 @@ internal sealed class ManualWasapiLoopbackCapture : IDisposable
         }
 
         tryAdd(mix);
-        tryAdd(WaveFormat.CreateIeeeFloatWaveFormat(mix.SampleRate, mix.Channels));
-        tryAdd(new WaveFormat(mix.SampleRate, 16, mix.Channels));
+
+        // Для WAVE_FORMAT_EXTENSIBLE (типично Realtek 48 kHz float) подмена на «простой» IEEE float часто даёт E_INVALIDARG.
+        if (mix.Encoding != WaveFormatEncoding.Extensible)
+        {
+            tryAdd(WaveFormat.CreateIeeeFloatWaveFormat(mix.SampleRate, mix.Channels));
+            tryAdd(new WaveFormat(mix.SampleRate, 16, mix.Channels));
+        }
+
         return result;
+    }
+
+    private static bool TryInitializeOnce(
+        MMDevice device,
+        WaveFormat format,
+        long bufferDurationHns,
+        AudioClientStreamFlags flags,
+        out ManualWasapiLoopbackCapture? capture,
+        out Exception? failure)
+    {
+        capture = null;
+        failure = null;
+        var client = device.AudioClient;
+        try
+        {
+            client.Initialize(AudioClientShareMode.Shared, flags, bufferDurationHns, 0L, format, Guid.Empty);
+            capture = new ManualWasapiLoopbackCapture(device, client, format);
+            return true;
+        }
+        catch (Exception ex) when (IsRecoverableWaveInitializeFailure(ex))
+        {
+            failure = ex;
+            client.Dispose();
+            return false;
+        }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
     }
 
     internal static bool IsRecoverableWaveInitializeFailure(Exception ex)
@@ -159,6 +195,24 @@ internal sealed class ManualWasapiLoopbackCapture : IDisposable
         var formats = BuildWaveFormatCandidates(mix);
         AudioClientStreamFlags[] noPersistVariants = [default, AudioClientStreamFlags.NoPersist];
 
+        foreach (var style in styles)
+        {
+            var baseFlags = style.ToLoopbackFlags();
+            foreach (var extra in noPersistVariants)
+            {
+                var flags = baseFlags | extra;
+                if (TryInitializeOnce(device, mix, 0L, flags, out var fast, out var fastFail))
+                    return fast;
+
+                lastFailure = fastFail;
+                if (defPeriod > 0 &&
+                    TryInitializeOnce(device, mix, defPeriod, flags, out fast, out fastFail))
+                    return fast;
+
+                lastFailure = fastFail;
+            }
+        }
+
         foreach (var wf in formats)
         {
             foreach (var dur in durations)
@@ -167,26 +221,14 @@ internal sealed class ManualWasapiLoopbackCapture : IDisposable
                 {
                     foreach (var noPersistAddon in noPersistVariants)
                     {
-                        var client = device.AudioClient;
                         var flags = style.ToLoopbackFlags() | noPersistAddon;
-                        try
+                        if (TryInitializeOnce(device, wf, dur, flags, out var capture, out var fail))
                         {
-                            client.Initialize(AudioClientShareMode.Shared, flags, dur, 0L, wf, Guid.Empty);
                             lastFailure = null;
+                            return capture;
+                        }
 
-                            // Успешный режим задаёт свой mix; приложению нужен общий источник для WaveFormat свойств.
-                            return new ManualWasapiLoopbackCapture(device, client, wf);
-                        }
-                        catch (Exception ex) when (IsRecoverableWaveInitializeFailure(ex))
-                        {
-                            lastFailure = ex;
-                            client.Dispose();
-                        }
-                        catch
-                        {
-                            client.Dispose();
-                            throw;
-                        }
+                        lastFailure = fail;
                     }
                 }
             }

@@ -12,10 +12,22 @@ public sealed class SourcedPcmCaptureDataAvailableEventArgs : EventArgs
         PcmCaptureSourceKind sourceKind,
         byte[] pcmSamples,
         WaveFormat waveFormat)
+        : this(sourceKind, pcmSamples, waveFormat, sessionMediaTimestampHns: null, sessionMediaDurationHns: null)
+    {
+    }
+
+    public SourcedPcmCaptureDataAvailableEventArgs(
+        PcmCaptureSourceKind sourceKind,
+        byte[] pcmSamples,
+        WaveFormat waveFormat,
+        long? sessionMediaTimestampHns,
+        long? sessionMediaDurationHns)
     {
         SourceKind = sourceKind;
         PcmSamples = pcmSamples ?? throw new ArgumentNullException(nameof(pcmSamples));
         WaveFormat = waveFormat ?? throw new ArgumentNullException(nameof(waveFormat));
+        SessionMediaTimestampHns = sessionMediaTimestampHns;
+        SessionMediaDurationHns = sessionMediaDurationHns;
     }
 
     public PcmCaptureSourceKind SourceKind { get; }
@@ -23,4 +35,10 @@ public sealed class SourcedPcmCaptureDataAvailableEventArgs : EventArgs
     public byte[] PcmSamples { get; }
 
     public WaveFormat WaveFormat { get; }
+
+    public long? SessionMediaTimestampHns { get; }
+
+    public long? SessionMediaDurationHns { get; }
+
+    public bool HasSessionTiming => SessionMediaTimestampHns is not null && SessionMediaDurationHns is not null;
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using ScreenRecorder.RecordingEngine.Recording;
 
 namespace ScreenRecorder.RecordingEngine.Audio;
 
@@ -7,10 +8,11 @@ namespace ScreenRecorder.RecordingEngine.Audio;
 /// Сценарий продукта: голос одновременно со звуком YouTube/игры с того же ПК без отдельного захвата по приложениям.
 /// В MP4 для MVP смешивание в одну стерео AAC-LC дорожку — в движке MF (<see cref="RecordingAudioSpec.MvpMp4AudioTrackLayout"/>); здесь только раздельные PCM-потоки с меткой источника.
 /// </summary>
-public sealed class MicAndLoopbackCaptureSession : IDisposable
+public sealed class MicAndLoopbackCaptureSession : IDisposable, IRecordingSessionTimebaseConsumer
 {
     private readonly object _gate = new();
     private bool _forwardingAttached;
+    private volatile RecordingSessionTimebase? _sessionTimebase;
 
     public MicAndLoopbackCaptureSession(
         ILogger<MicrophoneCaptureSession>? microphoneLogger = null,
@@ -30,9 +32,12 @@ public sealed class MicAndLoopbackCaptureSession : IDisposable
     /// </summary>
     public event EventHandler<SourcedPcmCaptureDataAvailableEventArgs>? PcmDataAvailable;
 
+    public void BindSessionTimebase(RecordingSessionTimebase timebase) =>
+        _sessionTimebase = timebase ?? throw new ArgumentNullException(nameof(timebase));
+
     /// <summary>
-    /// Запускает оба источника. Порядок: сначала loopback (смешивание вывода), затем микрофон — на части конфигураций
-    /// Windows/NAudio второй подряд <c>Initialize</c> на UI-потоке после микрофона даёт HRESULT E_INVALIDARG («Value does not fall within the expected range»).
+    /// Запускает оба источника. Порядок: сначала loopback (WASAPI на MTA-воркере), затем микрофон на потоке вызывающего —
+    /// на части конфигураций обратный порядок (микрофон до loopback) давал E_INVALIDARG при loopback <c>Initialize</c> на UI STA.
     /// При ошибке микрофона loopback уже запущенный останавливается перед пробросом исключения.
     /// </summary>
     public void Start(string? microphoneCaptureEndpointId, string? loopbackRenderEndpointId)
@@ -174,27 +179,38 @@ public sealed class MicAndLoopbackCaptureSession : IDisposable
         }
     }
 
-    private void OnMicrophonePcmDataAvailable(object? sender, PcmCaptureDataAvailableEventArgs e)
+    private void OnMicrophonePcmDataAvailable(object? sender, PcmCaptureDataAvailableEventArgs e) =>
+        ForwardPcm(PcmCaptureSourceKind.Microphone, e);
+
+    private void OnLoopbackPcmDataAvailable(object? sender, PcmCaptureDataAvailableEventArgs e) =>
+        ForwardPcm(PcmCaptureSourceKind.Loopback, e);
+
+    private void ForwardPcm(PcmCaptureSourceKind sourceKind, PcmCaptureDataAvailableEventArgs e)
     {
         var handler = PcmDataAvailable;
         if (handler is null)
             return;
 
-        handler(this, new SourcedPcmCaptureDataAvailableEventArgs(
-            PcmCaptureSourceKind.Microphone,
-            e.PcmSamples,
-            e.WaveFormat));
-    }
+        long? startHns = e.SessionMediaTimestampHns;
+        long? durationHns = e.SessionMediaDurationHns;
+        var timebase = _sessionTimebase;
+        if (timebase is { IsEstablished: true } && !e.HasSessionTiming)
+        {
+            var sampleCount = RecordingSessionPcmTiming.CountSamples(e.PcmSamples, e.WaveFormat);
+            if (sampleCount > 0 && RecordingSessionPcmTiming.IsNominalRate(e.WaveFormat))
+            {
+                var trackClock = sourceKind == PcmCaptureSourceKind.Microphone
+                    ? timebase.MicrophoneClock
+                    : timebase.LoopbackClock;
+                (startHns, durationHns) = trackClock.Allocate(sampleCount, timebase);
+            }
+        }
 
-    private void OnLoopbackPcmDataAvailable(object? sender, PcmCaptureDataAvailableEventArgs e)
-    {
-        var handler = PcmDataAvailable;
-        if (handler is null)
-            return;
-
         handler(this, new SourcedPcmCaptureDataAvailableEventArgs(
-            PcmCaptureSourceKind.Loopback,
+            sourceKind,
             e.PcmSamples,
-            e.WaveFormat));
+            e.WaveFormat,
+            startHns,
+            durationHns));
     }
 }

@@ -91,6 +91,10 @@ public sealed class RecordingSessionTests
     {
         public RecordingLifecycleState State { get; private set; } = RecordingLifecycleState.Idle;
 
+        private RecordingSessionTimebase? _sessionTimebase;
+
+        public RecordingSessionTimebase? SessionTimebase => _sessionTimebase;
+
         public int StartCallCount { get; private set; }
 
         public int StopCallCount { get; private set; }
@@ -108,6 +112,8 @@ public sealed class RecordingSessionTests
             if (ThrowOnSecondStart && StartCallCount >= 2)
                 throw new InvalidOperationException("Simulated runtime start failure.");
             LastStartedOptions = options;
+            _sessionTimebase = new RecordingSessionTimebase();
+            _sessionTimebase.Establish();
             State = RecordingLifecycleState.Recording;
             return Task.CompletedTask;
         }
@@ -116,6 +122,7 @@ public sealed class RecordingSessionTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             StopCallCount++;
+            _sessionTimebase = null;
             State = RecordingLifecycleState.Idle;
             return Task.CompletedTask;
         }
