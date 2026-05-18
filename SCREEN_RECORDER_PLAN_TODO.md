@@ -5,6 +5,7 @@
 привет. прочитай файл SCREEN_RECORDER_PLAN_TODO.md и давай выполнять следующий пункт плана
 
 Чеклист по фазам, лучшие практики
+
 и доработки после ревью плана. Отмечай `- [x]` по мере выполнения.
 
 ---
@@ -130,7 +131,7 @@
 - [x] Общий time origin при старте сессии; согласование видео QPC и аудио-клока. _(`RecordingSessionTimebase` + привязка в `RecordingRuntime`; видео — `CapturedVideoFrameEventArgs` / QPC−latency; аудио — счётчики сэмплов на ногах mic/loopback в `SourcedPcmCaptureDataAvailableEventArgs`; тесты `RecordingSessionTimebaseTests`.)_
 - [x] GOP / keyframe interval; CBR/VBR — выбрать и протестировать. _(MVP: **peak-constrained VBR** (`H264RateControlMode.PeakConstrainedVbr`), средний = `VideoBitrateBps`, пик ≈ 1.5×; **GOP 2 с** (`VideoKeyframeIntervalSeconds` → `CODECAPI_AVEncMPVGOPSize` + `MF_MT_MAX_KEYFRAME_SPACING`); CBR — `ConstantBitrate`. Спека: `RecordingVideoEncodingSpec`; тесты `Mp4SinkWriterConfigurationTests`, `Mp4SinkWriterTests` CBR/VBR.)_
 - [x] Корректный `Finalize` при Stop и при ошибке (минимизировать битые файлы). _(`Mp4SinkWriter.Shutdown` Complete/AbortDueToError: finalize, удаление пустого/битого файла; `OutputPath`, `HasWrittenSamples`; тесты `Mp4SinkWriterFinalizeTests`.)_
-- [ ] **Готово:** MP4 открывается штатными средствами; синхрон «на слух» приемлемый; таблица: Intel / NVIDIA / AMD (аппаратный MFT vs fallback).
+- [x] **Готово:** MP4 открывается штатными средствами; синхрон «на слух» приемлемый; таблица: Intel / NVIDIA / AMD (аппаратный MFT vs fallback). _(авто: `Mp4PhaseDValidationTests`, `Mp4ContainerValidation`, `MediaFoundationEncoderReport` HW/SW; ручной чеклист — [docs/PHASE_D_MP4_MANUAL_VALIDATION_CHECKLIST.md](docs/PHASE_D_MP4_MANUAL_VALIDATION_CHECKLIST.md); матрица — [docs/HARDWARE_CODEC_MATRIX.md](docs/HARDWARE_CODEC_MATRIX.md); строки AMD / чистый Intel iGPU — по мере тестов.)_
 
 ---
 

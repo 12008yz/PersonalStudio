@@ -9,24 +9,79 @@ namespace ScreenRecorder.RecordingEngine.MediaFoundation;
 /// </summary>
 public static class MediaFoundationEncoderCatalog
 {
+    private static readonly Guid MftFriendlyNameAttribute = new("314FFBAE-5B41-4C95-9C19-4E7D586EEC7D");
+
     private static readonly EnumFlag s_enumFlags =
         EnumFlag.EnumFlagSyncmft
         | EnumFlag.EnumFlagAsyncmft
         | EnumFlag.EnumFlagHardware
         | EnumFlag.EnumFlagLocalmft;
 
-    /// <summary>
-    /// Перечисляет энкодеры с заданным выходным типом (для видео — выход сжатого H.264, для аудио — AAC).
-    /// Освобождает объекты активации после подсчёта.
-    /// </summary>
-    public static int CountEncoders(Guid transformCategory, RegisterTypeInfo outputRegisterType)
+    private static readonly EnumFlag s_hardwareEnumFlags =
+        EnumFlag.EnumFlagHardware
+        | EnumFlag.EnumFlagSyncmft
+        | EnumFlag.EnumFlagAsyncmft
+        | EnumFlag.EnumFlagLocalmft;
+
+    /// <summary>Сколько зарегистрировано энкодеров с выходом H.264 (уникальные CLSID).</summary>
+    public static int CountH264VideoEncoders() => ListH264VideoEncoders().Count;
+
+    /// <summary>Сколько зарегистрировано энкодеров с выходом AAC (уникальные CLSID).</summary>
+    public static int CountAacEncoders() => ListAacEncoders().Count;
+
+    public static IReadOnlyList<MediaFoundationEncoderInfo> ListH264VideoEncoders() =>
+        ListEncoders(TransformCategoryGuids.VideoEncoder, CreateH264OutputRegisterType(), MediaFoundationEncoderKind.H264Video);
+
+    public static IReadOnlyList<MediaFoundationEncoderInfo> ListAacEncoders() =>
+        ListEncoders(TransformCategoryGuids.AudioEncoder, CreateAacOutputRegisterType(), MediaFoundationEncoderKind.AacAudio);
+
+    private static RegisterTypeInfo CreateH264OutputRegisterType() => new()
+    {
+        GuidMajorType = MediaTypeGuids.Video,
+        GuidSubtype = VideoFormatGuids.FromFourCC(new FourCC("H264")),
+    };
+
+    private static RegisterTypeInfo CreateAacOutputRegisterType() => new()
+    {
+        GuidMajorType = MediaTypeGuids.Audio,
+        GuidSubtype = AudioFormatGuids.Aac,
+    };
+
+    private static IReadOnlyList<MediaFoundationEncoderInfo> ListEncoders(
+        Guid transformCategory,
+        RegisterTypeInfo outputRegisterType,
+        MediaFoundationEncoderKind kind)
+    {
+        var hardwareClsids = EnumerateEncoders(transformCategory, outputRegisterType, s_hardwareEnumFlags)
+            .Select(e => e.TransformClsid)
+            .ToHashSet();
+
+        return EnumerateEncoders(transformCategory, outputRegisterType, s_enumFlags)
+            .GroupBy(e => e.TransformClsid)
+            .Select(g => g.First())
+            .Select(e => new MediaFoundationEncoderInfo(
+                e.TransformClsid,
+                e.FriendlyName,
+                IsHardware: hardwareClsids.Contains(e.TransformClsid),
+                Kind: kind))
+            .OrderByDescending(e => e.IsHardware)
+            .ThenBy(e => e.FriendlyName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private readonly record struct EnumeratedEncoder(Guid TransformClsid, string FriendlyName);
+
+    private static List<EnumeratedEncoder> EnumerateEncoders(
+        Guid transformCategory,
+        RegisterTypeInfo outputRegisterType,
+        EnumFlag flags)
     {
         MediaFoundationLifetime.AddRef();
         try
         {
             MediaFactory.MFTEnumEx(
                 transformCategory,
-                (uint)s_enumFlags,
+                (uint)flags,
                 inputType: null,
                 outputType: outputRegisterType,
                 out var ppActivates,
@@ -34,11 +89,26 @@ public static class MediaFoundationEncoderCatalog
 
             try
             {
-                return (int)count;
+                var encoders = new List<EnumeratedEncoder>();
+                if (ppActivates == 0 || count == 0)
+                    return encoders;
+
+                for (uint i = 0; i < count; i++)
+                {
+                    var pActivate = Marshal.ReadIntPtr(ppActivates, checked((int)(i * nint.Size)));
+                    if (pActivate == 0)
+                        continue;
+
+                    using var activate = new IMFActivate(pActivate);
+                    encoders.Add(ReadEnumeratedEncoder(activate));
+                }
+
+                return encoders;
             }
             finally
             {
-                FreeActivateArray(ppActivates, count);
+                if (ppActivates != 0)
+                    Marshal.FreeCoTaskMem(ppActivates);
             }
         }
         finally
@@ -47,41 +117,26 @@ public static class MediaFoundationEncoderCatalog
         }
     }
 
-    /// <summary>Сколько зарегистрировано энкодеров с выходом H.264 (видео).</summary>
-    public static int CountH264VideoEncoders()
+    private static EnumeratedEncoder ReadEnumeratedEncoder(IMFActivate activate)
     {
-        var output = new RegisterTypeInfo
-        {
-            GuidMajorType = MediaTypeGuids.Video,
-            GuidSubtype = VideoFormatGuids.FromFourCC(new FourCC("H264")),
-        };
-        return CountEncoders(TransformCategoryGuids.VideoEncoder, output);
+        var clsid = activate.GetGUID(TransformAttributeKeys.MftTransformClsidAttribute);
+        var friendlyName = TryGetFriendlyName(activate, clsid);
+        return new EnumeratedEncoder(clsid, friendlyName);
     }
 
-    /// <summary>Сколько зарегистрировано энкодеров с выходом AAC (аудио).</summary>
-    public static int CountAacEncoders()
+    private static string TryGetFriendlyName(IMFActivate activate, Guid transformClsid)
     {
-        var output = new RegisterTypeInfo
+        try
         {
-            GuidMajorType = MediaTypeGuids.Audio,
-            GuidSubtype = AudioFormatGuids.Aac,
-        };
-        return CountEncoders(TransformCategoryGuids.AudioEncoder, output);
-    }
-
-    private static void FreeActivateArray(nint ppActivates, uint count)
-    {
-        if (ppActivates == 0 || count == 0)
-            return;
-
-        for (uint i = 0; i < count; i++)
+            var name = activate.GetString(MftFriendlyNameAttribute);
+            if (!string.IsNullOrWhiteSpace(name))
+                return name;
+        }
+        catch
         {
-            var pActivate = Marshal.ReadIntPtr(ppActivates, checked((int)(i * nint.Size)));
-            if (pActivate == 0)
-                continue;
-            using var act = new IMFActivate(pActivate);
+            // Fall through to CLSID label.
         }
 
-        Marshal.FreeCoTaskMem(ppActivates);
+        return $"MFT {transformClsid:D}";
     }
 }

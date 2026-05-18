@@ -12,8 +12,9 @@ public readonly record struct MediaFoundationEncoderAvailability(
         H264VideoEncoderCount > 0 && AacAudioEncoderCount > 0;
 
     /// <summary>Перечисляет зарегистрированные энкодеры (внутри — парные <see cref="MediaFoundationLifetime.AddRef"/>/<see cref="MediaFoundationLifetime.Release"/>).</summary>
-    public static MediaFoundationEncoderAvailability Probe() =>
-        new(
-            MediaFoundationEncoderCatalog.CountH264VideoEncoders(),
-            MediaFoundationEncoderCatalog.CountAacEncoders());
+    public static MediaFoundationEncoderAvailability Probe()
+    {
+        var report = MediaFoundationEncoderReport.Probe();
+        return new MediaFoundationEncoderAvailability(report.H264Encoders.Count, report.AacEncoders.Count);
+    }
 }

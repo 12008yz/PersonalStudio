@@ -4,10 +4,10 @@
 
 **Покрытие:** одна строка = один прогон на конкретном ПК. Цель плана — иметь данные **по разным вендорам**; гибрид «NVIDIA + Intel» подтверждает стек на ноуте с дискретной и встроенной графикой, но **не заменяет** отдельный прогон на системе с **AMD** или на конфигурации только с **Intel iGPU** без дискретной карты (добавьте строки ниже).
 
-| Машина / дата | GPU | Драйвер (кратко) | Вариант A (`MfSpike`) OK | Вариант B (`VariantBSpike`) OK | Примечания (HRESULT, отсутствие MFT, др.) |
-|----------------|-----|------------------|---------------------------|--------------------------------|-------------------------------------------|
-| 2026-05-10, dev (Windows 10 x64 **19045**) | NVIDIA GeForce RTX 3050 Laptop GPU; второй адаптер: Intel UHD Graphics (гибрид) | NVIDIA `32.0.15.9636`; Intel `30.0.101.2079` | ☑ | ☑ | Запуск из корня: `dotnet run --project src/ScreenRecorder.MfSpike/ScreenRecorder.MfSpike.csproj -c Release` и `dotnet run --project src/ScreenRecorder.VariantBSpike/ScreenRecorder.VariantBSpike.csproj -c Release`. Процесс завершился с кодом **0**; путь к `.mp4` печатается в stdout (**VariantB** — `WinExe`, консоль есть при запуске через `dotnet run`). Исключений не было (HRESULT при ошибках смотри в `Exception`). |
-| *(AMD или «чистый» Intel iGPU — по мере тестов)* | | | ☐ | ☐ | |
+| Машина / дата | GPU | Драйвер (кратко) | Вариант A (`MfSpike`) OK | Вариант B (`VariantBSpike`) OK | `Mp4SinkWriter` (Phase D) | MFT H.264 (HW / SW) | MFT AAC | Примечания |
+|----------------|-----|------------------|---------------------------|--------------------------------|---------------------------|---------------------|---------|------------|
+| 2026-05-10, dev (Windows 10 x64 **19045**) | NVIDIA GeForce RTX 3050 Laptop GPU; второй адаптер: Intel UHD Graphics (гибрид) | NVIDIA `32.0.15.9636`; Intel `30.0.101.2079` | ☑ | ☑ | ☑ (автотест `Mp4PhaseDValidationTests`, 1080p30 5 с A/V, `ftyp` OK) | 3 / 0 | 1 | Спайки: `dotnet run` из корня, код **0**. Phase D: `dotnet test --filter Mp4PhaseDValidationTests`. MFT по **CLSID** (`MediaFoundationEncoderReport`); на гибриде — несколько HW H.264. Плеер/синхрон — [PHASE_D_MP4_MANUAL_VALIDATION_CHECKLIST.md](PHASE_D_MP4_MANUAL_VALIDATION_CHECKLIST.md) (`SCREENRECORDER_KEEP_PHASED_MP4=1` оставляет `.mp4`). |
+| *(AMD или «чистый» Intel iGPU — по мере тестов)* | | | ☐ | ☐ | ☐ | | | |
 
 **Как проверять:** запустить оба спайка из корня репозитория, убедиться что `.mp4` открывается встроенным плеером; при сбое записать **HRESULT** / текст исключения и среду (сборка Windows, версия WASDK).
 
