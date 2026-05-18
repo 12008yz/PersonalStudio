@@ -70,7 +70,9 @@ public sealed class Mp4SinkWriterTests
             }
 
             Assert.IsTrue(lastTimestampHns + writer.VideoFrameDurationHns <= expectedDurationHns + writer.VideoFrameDurationHns);
-            writer.FinalizeWriting();
+            var shutdown = writer.Shutdown(Mp4SinkWriterShutdownKind.Complete);
+            Assert.IsTrue(shutdown.FinalizeSucceeded);
+            Assert.IsTrue(shutdown.OutputFileRetained);
         }
         finally
         {

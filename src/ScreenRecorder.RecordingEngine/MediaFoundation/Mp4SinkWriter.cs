@@ -6,9 +6,12 @@ namespace ScreenRecorder.RecordingEngine.MediaFoundation;
 /// <summary>
 /// Запись MP4 (H.264 + AAC-LC) через <see cref="IMFSinkWriter"/>.
 /// Все вызовы MF выполняются на потоке создателя; для продакшена — worker <see cref="BoundedEncoderWorkQueue{TWorkItem}"/>.
+/// Нормальный Stop — <see cref="Shutdown(Mp4SinkWriterShutdownKind.Complete)"/>; сбой — <see cref="Shutdown(Mp4SinkWriterShutdownKind.AbortDueToError)"/>.
+/// После <see cref="Shutdown"/> объект освобождён; повторный вызов идемпотентен. <see cref="Dispose"/> без Shutdown — abort (best-effort).
 /// </summary>
 public sealed class Mp4SinkWriter : IDisposable
 {
+    private readonly string _outputPath;
     private readonly Mp4SinkWriterConfiguration _configuration;
     private readonly IMFSinkWriter _sinkWriter;
     private readonly int _videoStreamIndex;
@@ -16,14 +19,18 @@ public sealed class Mp4SinkWriter : IDisposable
     private readonly long _videoFrameDurationHns;
     private bool _mfLifetimeHeld;
     private bool _finalized;
+    private bool _disposed;
+    private bool _hasWrittenSamples;
 
     private Mp4SinkWriter(
+        string outputPath,
         Mp4SinkWriterConfiguration configuration,
         IMFSinkWriter sinkWriter,
         int videoStreamIndex,
         int audioStreamIndex,
         long videoFrameDurationHns)
     {
+        _outputPath = outputPath;
         _configuration = configuration;
         _sinkWriter = sinkWriter;
         _videoStreamIndex = videoStreamIndex;
@@ -31,7 +38,13 @@ public sealed class Mp4SinkWriter : IDisposable
         _videoFrameDurationHns = videoFrameDurationHns;
     }
 
+    public string OutputPath => _outputPath;
+
     public long VideoFrameDurationHns => _videoFrameDurationHns;
+
+    public bool IsFinalized => _finalized;
+
+    public bool HasWrittenSamples => _hasWrittenSamples;
 
     public static Mp4SinkWriter Create(string outputPath, Mp4SinkWriterConfiguration configuration)
     {
@@ -76,7 +89,7 @@ public sealed class Mp4SinkWriter : IDisposable
             sinkWriter.BeginWriting();
 
             var frameDuration = Mp4SinkWriterMediaTypes.FrameDurationHns(configuration.FramesPerSecond);
-            var writer = new Mp4SinkWriter(configuration, sinkWriter, videoStreamIndex, audioStreamIndex, frameDuration)
+            var writer = new Mp4SinkWriter(outputPath, configuration, sinkWriter, videoStreamIndex, audioStreamIndex, frameDuration)
             {
                 _mfLifetimeHeld = true,
             };
@@ -87,13 +100,14 @@ public sealed class Mp4SinkWriter : IDisposable
         {
             sinkWriter?.Dispose();
             MediaFoundationLifetime.Release();
+            TryDeleteOutputFile(outputPath);
             throw;
         }
     }
 
     public void WriteVideoFrame(ReadOnlySpan<byte> nv12, long timestampHns)
     {
-        ThrowIfFinalized();
+        ThrowIfNotWritable();
         var expectedBytes = Mp4SinkWriterMediaTypes.CalculateNv12BufferSize(_configuration.Width, _configuration.Height);
         if (nv12.Length != expectedBytes)
         {
@@ -107,7 +121,7 @@ public sealed class Mp4SinkWriter : IDisposable
 
     public void WriteAudioPcm16(ReadOnlySpan<byte> pcm16Le, long timestampHns, long durationHns)
     {
-        ThrowIfFinalized();
+        ThrowIfNotWritable();
         if (pcm16Le.Length == 0)
             return;
 
@@ -122,8 +136,12 @@ public sealed class Mp4SinkWriter : IDisposable
         WriteBufferSample(_audioStreamIndex, pcm16Le, timestampHns, durationHns);
     }
 
+    /// <summary>Явный успешный Finalize без освобождения writer (редко нужен; предпочтительнее <see cref="Shutdown"/>).</summary>
     public void FinalizeWriting()
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(Mp4SinkWriter));
+
         if (_finalized)
             return;
 
@@ -131,20 +149,101 @@ public sealed class Mp4SinkWriter : IDisposable
         _finalized = true;
     }
 
-    public void Dispose()
+    /// <summary>
+    /// Контролируемое завершение mux. При <see cref="Mp4SinkWriterShutdownKind.Complete"/> и сбое finalize
+    /// после записи семплов бросает <see cref="InvalidOperationException"/>.
+    /// </summary>
+    public Mp4SinkWriterShutdownResult Shutdown(Mp4SinkWriterShutdownKind kind)
     {
-        if (!_finalized)
+        if (_disposed)
         {
-            try
-            {
-                FinalizeWriting();
-            }
-            catch
-            {
-                // Best-effort finalize on dispose; caller should prefer explicit FinalizeWriting after errors.
-            }
+            return new Mp4SinkWriterShutdownResult(
+                kind,
+                finalizeSucceeded: _finalized,
+                hasWrittenSamples: _hasWrittenSamples,
+                outputFileRetained: File.Exists(_outputPath),
+                outputFileDeleted: false,
+                finalizeError: null);
         }
 
+        var finalizeSucceeded = TryFinalize(out var finalizeError);
+        ReleaseResources();
+
+        var shouldDelete = ShouldDeleteOutputFile(finalizeSucceeded);
+        if (shouldDelete)
+            TryDeleteOutputFile(_outputPath);
+
+        var outputFileRetained = File.Exists(_outputPath);
+        var outputFileDeleted = shouldDelete && !outputFileRetained;
+
+        var result = new Mp4SinkWriterShutdownResult(
+            kind,
+            finalizeSucceeded,
+            _hasWrittenSamples,
+            outputFileRetained,
+            outputFileDeleted,
+            finalizeError);
+
+        if (kind == Mp4SinkWriterShutdownKind.Complete &&
+            _hasWrittenSamples &&
+            !finalizeSucceeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to finalize MP4 at '{_outputPath}'.",
+                finalizeError);
+        }
+
+        return result;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        try
+        {
+            Shutdown(Mp4SinkWriterShutdownKind.AbortDueToError);
+        }
+        catch
+        {
+            // Best-effort abort on dispose; explicit Shutdown(Complete) is required for normal Stop.
+        }
+    }
+
+    private bool ShouldDeleteOutputFile(bool finalizeSucceeded)
+    {
+        if (!_hasWrittenSamples)
+            return true;
+
+        return !finalizeSucceeded;
+    }
+
+    private bool TryFinalize(out Exception? error)
+    {
+        error = null;
+        if (_finalized)
+            return true;
+
+        try
+        {
+            _sinkWriter.Finalize();
+            _finalized = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex;
+            return false;
+        }
+    }
+
+    private void ReleaseResources()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _sinkWriter.Dispose();
 
         if (_mfLifetimeHeld)
@@ -180,11 +279,33 @@ public sealed class Mp4SinkWriter : IDisposable
         sample.SampleTime = timestampHns;
         sample.SampleDuration = durationHns;
         _sinkWriter.WriteSample(streamIndex, sample);
+        _hasWrittenSamples = true;
     }
 
-    private void ThrowIfFinalized()
+    private void ThrowIfNotWritable()
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(Mp4SinkWriter));
+
         if (_finalized)
             throw new InvalidOperationException("Sink writer is finalized.");
+    }
+
+    private static bool TryDeleteOutputFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+                return true;
+            }
+        }
+        catch
+        {
+            // Best-effort; caller logs via shutdown result + file still on disk.
+        }
+
+        return false;
     }
 }
